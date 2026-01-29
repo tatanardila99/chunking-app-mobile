@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -6,6 +5,7 @@ import '../../../data/local/database_helper.dart';
 
 class LessonScreen extends StatefulWidget {
   final String patternId;
+
   const LessonScreen({super.key, required this.patternId});
 
   @override
@@ -13,395 +13,333 @@ class LessonScreen extends StatefulWidget {
 }
 
 class _LessonScreenState extends State<LessonScreen> {
+  Map<String, dynamic>? _patternData;
   List<Map<String, dynamic>> _phrases = [];
   bool _isLoading = true;
-
-  // Variables para guardar la info real del patrón
-  String _patternTitle = "Loading...";
-  String _grammarRule = "Loading rule...";
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _loadLessonData();
   }
 
-  Future<void> _loadData() async {
+  Future<void> _loadLessonData() async {
     final db = DatabaseHelper.instance;
-
-    // 1. Cargar INFO DEL PATRÓN (Título y Regla)
-    final patternData = await db.getPatternById(widget.patternId);
-
-    // 2. Cargar FRASES
+    final pattern = await db.getPatternById(widget.patternId);
     final phrases = await db.getPhrasesByPatternId(widget.patternId);
 
     if (mounted) {
       setState(() {
-        if (patternData != null) {
-          _patternTitle = patternData['title']; // "I'm allowed to..."
-          _grammarRule = patternData['grammar_rule']; // "Used to express..."
-        }
+        _patternData = pattern;
         _phrases = phrases;
         _isLoading = false;
       });
     }
   }
 
-  Future<void> _toggleProgress(
-    int index,
-    String field,
-    bool currentValue,
-  ) async {
-    setState(() {
-      _phrases[index][field] = currentValue ? 0 : 1;
-    });
+  Future<void> _toggleProgress(int index, String field) async {
+    final phrase = _phrases[index];
+    final int phraseId = phrase['id'];
 
-    int phraseId = _phrases[index]['id'];
-    bool newValue = _phrases[index][field] == 1;
+    final bool currentValue = (phrase[field] == 1);
+    final bool newValue = !currentValue;
+
     await DatabaseHelper.instance.updateProgress(phraseId, field, newValue);
+
+    setState(() {
+      _phrases[index][field] = newValue ? 1 : 0;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBody: true, // Importante para el diseño full screen
-      backgroundColor: AppTheme.bgDark, // Fondo base por si falla el gradiente
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: RadialGradient(
-            colors: [AppTheme.bgDark.withOpacity(0.8), AppTheme.bgDark],
-            center: Alignment.topCenter,
-            radius: 1.5,
+      backgroundColor: AppTheme.bgDark,
+      appBar: AppBar(
+        backgroundColor: AppTheme.bgDark,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+            color: Colors.white,
           ),
+          onPressed: () => context.pop(),
         ),
-        child: SafeArea(
-          bottom: false, // Dejamos que el contenido baje hasta el fondo
-          child: Stack(
-            children: [
-              // CAPA 1: Contenido (Header + Regla + Lista)
-              Column(
-                children: [
-                  _buildHeader(context),
-
-                  // Regla Gramatical Dinámica
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildGrammarRule(),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // Lista de Frases
-                  Expanded(
-                    child:
-                        _isLoading
-                            ? const Center(
-                              child: CircularProgressIndicator(
-                                color: AppTheme.primaryGreen,
-                              ),
-                            )
-                            : _phrases.isEmpty
-                            ? const Center(
-                              child: Text(
-                                "No phrases found",
-                                style: TextStyle(color: Colors.white),
-                              ),
-                            )
-                            : ListView.builder(
-                              // PADDING INFERIOR GIGANTE PARA QUE EL REPRODUCTOR NO TAPE EL FINAL
-                              padding: const EdgeInsets.fromLTRB(
-                                20,
-                                0,
-                                20,
-                                150,
-                              ),
-                              itemCount: _phrases.length,
-                              itemBuilder: (context, index) {
-                                return _PhraseRow(
-                                  phraseData: _phrases[index],
-                                  onToggle:
-                                      (field, value) =>
-                                          _toggleProgress(index, field, value),
-                                );
-                              },
-                            ),
-                  ),
-                ],
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Practice Mode",
+              style: TextStyle(
+                color: AppTheme.primaryGreen,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
               ),
-
-              // CAPA 2: Reproductor Flotante (Debe ser el ÚLTIMO hijo del Stack)
-              Positioned(
-                bottom: 30, // Separado del fondo
-                left: 20,
-                right: 20,
-                child: _buildGlassPlayer(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeader(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Row(
-        children: [
-          GestureDetector(
-            onTap: () => context.pop(),
-            child: Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white.withOpacity(0.1)),
-              ),
-              child: const Icon(Icons.arrow_back, color: Colors.white),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            // Expanded para evitar overflow si el título es largo
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  "Practice Mode",
-                  style: TextStyle(
-                    color: AppTheme.primaryGreen,
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                Text(
-                  _patternTitle, // AQUI USAMOS EL TITULO REAL
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGrammarRule() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E).withOpacity(0.6),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.lightbulb_outline,
-            color: AppTheme.primaryGreen,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              _grammarRule, // AQUI USAMOS LA REGLA REAL
+            Text(
+              _patternData?['title'] ?? "Loading...",
               style: const TextStyle(
-                color: AppTheme.textGrey,
-                height: 1.4,
-                fontSize: 14,
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _buildGlassPlayer() {
-    // Usamos ClipRRect y BackdropFilter para asegurar el efecto visual
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          height: 80,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          decoration: BoxDecoration(
-            color: const Color(
-              0xFF1E1E1E,
-            ).withOpacity(0.85), // Fondo oscuro semitransparente
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 20,
-                offset: const Offset(0, 10),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: const BoxDecoration(
-                  color: AppTheme.primaryGreen,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: Colors.black,
-                  size: 30,
-                ),
-              ),
-              const SizedBox(width: 16),
-              const Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      "Auto-Play",
-                      style: TextStyle(
-                        color: AppTheme.primaryGreen,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      "Listen & Repeat",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Row(
+      body:
+          _isLoading
+              ? const Center(
+                child: CircularProgressIndicator(color: AppTheme.primaryGreen),
+              )
+              : Column(
                 children: [
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.skip_previous_rounded,
-                      color: Colors.white,
+                  // 1. Tarjeta de Regla
+                  if (_patternData != null)
+                    _GrammarCard(
+                      rule:
+                          _patternData!['grammar_rule'] ?? "No rule available",
+                      subtitle: _patternData!['subtitle'] ?? "",
                     ),
-                  ),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.skip_next_rounded,
-                      color: Colors.white,
+
+                  // 2. Lista de Frases
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 20,
+                      ),
+                      itemCount: _phrases.length,
+                      itemBuilder: (context, index) {
+                        final phrase = _phrases[index];
+                        return _PhrasePracticeCard(
+                          phrase: phrase,
+                          onToggleP1: () => _toggleProgress(index, 'p1'),
+                          onToggleP2: () => _toggleProgress(index, 'p2'),
+                        );
+                      },
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
 
-class _PhraseRow extends StatefulWidget {
-  final Map<String, dynamic> phraseData;
-  final Function(String field, bool currentValue) onToggle;
+// --- WIDGETS AUXILIARES ---
 
-  const _PhraseRow({required this.phraseData, required this.onToggle});
+class _GrammarCard extends StatelessWidget {
+  final String rule;
+  final String subtitle;
 
-  @override
-  State<_PhraseRow> createState() => _PhraseRowState();
-}
-
-class _PhraseRowState extends State<_PhraseRow> {
-  bool _isRevealed = false;
+  const _GrammarCard({required this.rule, required this.subtitle});
 
   @override
   Widget build(BuildContext context) {
-    bool p1 = widget.phraseData['p1'] == 1;
-    bool p2 = widget.phraseData['p2'] == 1;
-    bool isMastered = p1 && p2;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(bottom: 12),
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color:
-            isMastered
-                ? const Color(0xFF1B5E20).withOpacity(0.2)
-                : Colors.white.withOpacity(0.03),
+        color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color:
-              isMastered
-                  ? AppTheme.primaryGreen.withOpacity(0.3)
-                  : Colors.white.withOpacity(0.05),
-        ),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  widget.phraseData['text_en'],
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color:
-                        isMastered
-                            ? Colors.white.withOpacity(0.5)
-                            : Colors.white,
-                  ),
-                ),
+              const Icon(
+                Icons.lightbulb_outline_rounded,
+                color: Colors.amber,
+                size: 20,
               ),
-              Row(
-                children: [
-                  _CustomCheckbox(
-                    label: "P1",
-                    value: p1,
-                    onChanged: () => widget.onToggle('p1', p1),
-                  ),
-                  const SizedBox(width: 8),
-                  _CustomCheckbox(
-                    label: "P2",
-                    value: p2,
-                    onChanged: () => widget.onToggle('p2', p2),
-                  ),
-                ],
+              const SizedBox(width: 8),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          GestureDetector(
-            onTap: () => setState(() => _isRevealed = !_isRevealed),
-            child: AnimatedCrossFade(
-              firstChild: _buildBlurredText(),
-              secondChild: Text(
-                widget.phraseData['text_es'],
-                style: const TextStyle(
-                  color: AppTheme.primaryGreen,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
+          const SizedBox(height: 8),
+          Text(
+            rule,
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.8),
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PhrasePracticeCard extends StatelessWidget {
+  final Map<String, dynamic> phrase;
+  final VoidCallback onToggleP1;
+  final VoidCallback onToggleP2;
+
+  const _PhrasePracticeCard({
+    required this.phrase,
+    required this.onToggleP1,
+    required this.onToggleP2,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool p1Active = (phrase['p1'] == 1);
+    final bool p2Active = (phrase['p2'] == 1);
+    final bool isMastered = p1Active && p2Active;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color:
+            isMastered
+                ? AppTheme.primaryGreen.withOpacity(0.05)
+                : AppTheme.cardDark,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color:
+              isMastered
+                  ? AppTheme.primaryGreen.withOpacity(0.3)
+                  : Colors.transparent,
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Texto (Inglés y Tap to Reveal Español)
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Frase en Inglés (Chunk)
+                Text(
+                  phrase['text_en'],
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
+                const SizedBox(height: 8),
+
+                // Tap to Reveal (Español)
+                _TapToReveal(
+                  hiddenText: phrase['text_es'],
+                  isMastered: isMastered,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 12),
+
+          // Botones P1 y P2 (Alineados arriba)
+          Column(
+            children: [
+              _CircularCheckButton(
+                label: "P1",
+                isActive: p1Active,
+                onTap: onToggleP1,
               ),
-              crossFadeState:
-                  _isRevealed
-                      ? CrossFadeState.showSecond
-                      : CrossFadeState.showFirst,
-              duration: const Duration(milliseconds: 200),
+              const SizedBox(height: 12),
+              _CircularCheckButton(
+                label: "P2",
+                isActive: p2Active,
+                onTap: onToggleP2,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// --- WIDGET TAP TO REVEAL (Aquí está la magia) ---
+class _TapToReveal extends StatefulWidget {
+  final String hiddenText;
+  final bool isMastered;
+
+  const _TapToReveal({required this.hiddenText, required this.isMastered});
+
+  @override
+  State<_TapToReveal> createState() => _TapToRevealState();
+}
+
+class _TapToRevealState extends State<_TapToReveal> {
+  bool _isRevealed = false;
+
+  @override
+  void didUpdateWidget(covariant _TapToReveal oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Si cambia la frase (reciclaje de lista), ocultar de nuevo
+    if (widget.hiddenText != oldWidget.hiddenText) {
+      _isRevealed = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Si ya dominaste la frase (Mastered), mostramos el texto siempre
+    if (widget.isMastered) {
+      return Text(
+        widget.hiddenText,
+        style: TextStyle(
+          color: AppTheme.primaryGreen.withOpacity(0.8),
+          fontSize: 14,
+          fontStyle: FontStyle.italic,
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _isRevealed = !_isRevealed; // Toggle al tocar
+        });
+      },
+      child: AnimatedCrossFade(
+        duration: const Duration(milliseconds: 300),
+        firstChild: _buildHiddenState(),
+        secondChild: _buildRevealedState(),
+        crossFadeState:
+            _isRevealed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+      ),
+    );
+  }
+
+  Widget _buildHiddenState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.touch_app_rounded,
+            size: 14,
+            color: Colors.white.withOpacity(0.5),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            "Tap to reveal",
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -409,61 +347,64 @@ class _PhraseRowState extends State<_PhraseRow> {
     );
   }
 
-  Widget _buildBlurredText() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: ImageFiltered(
-        imageFilter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-          color: Colors.white.withOpacity(0.1),
-          child: Text(
-            widget.phraseData['text_es'],
-            style: const TextStyle(color: Colors.transparent, fontSize: 15),
-          ),
-        ),
+  Widget _buildRevealedState() {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        widget.hiddenText,
+        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
       ),
     );
   }
 }
 
-class _CustomCheckbox extends StatelessWidget {
+class _CircularCheckButton extends StatelessWidget {
   final String label;
-  final bool value;
-  final VoidCallback onChanged;
+  final bool isActive;
+  final VoidCallback onTap;
 
-  const _CustomCheckbox({
+  const _CircularCheckButton({
     required this.label,
-    required this.value,
-    required this.onChanged,
+    required this.isActive,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onChanged,
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        width: 32,
-        height: 32,
+        width: 36,
+        height: 36,
         decoration: BoxDecoration(
-          color: value ? AppTheme.primaryGreen : Colors.transparent,
+          color: isActive ? AppTheme.primaryGreen : Colors.transparent,
           shape: BoxShape.circle,
           border: Border.all(
             color:
-                value
+                isActive
                     ? AppTheme.primaryGreen
-                    : AppTheme.textGrey.withOpacity(0.5),
+                    : Colors.white.withOpacity(0.3),
             width: 1.5,
           ),
+          boxShadow:
+              isActive
+                  ? [
+                    BoxShadow(
+                      color: AppTheme.primaryGreen.withOpacity(0.4),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                  : [],
         ),
         child: Center(
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              color: isActive ? Colors.black : Colors.white.withOpacity(0.5),
               fontWeight: FontWeight.bold,
-              color: value ? Colors.black : AppTheme.textGrey,
+              fontSize: 12,
             ),
           ),
         ),

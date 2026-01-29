@@ -286,6 +286,65 @@ class DatabaseHelper {
     return {'chunks_collected': mastered, 'accuracy': 94};
   }
 
+  // --- MÉTODO DE REPARACIÓN DE DATOS ---
+  // Llama a esto después de sincronizar para arreglar los contadores en 0
+  Future<void> recalculateAllPatternCounts() async {
+    final db = await instance.database;
+
+    // 1. Obtener todos los patrones
+    final patterns = await db.query('patterns');
+
+    for (var pattern in patterns) {
+      int id = pattern['id'] as int;
+
+      // Contar frases totales reales en la BD local
+      final totalRes = await db.rawQuery(
+        'SELECT COUNT(*) FROM phrases WHERE pattern_id = ?',
+        [id],
+      );
+      int total = Sqflite.firstIntValue(totalRes) ?? 0;
+
+      // Contar masterizadas reales
+      final masteredRes = await db.rawQuery(
+        '''
+        SELECT COUNT(*) FROM user_progress up
+        JOIN phrases p ON up.phrase_id = p.id
+        WHERE p.pattern_id = ? AND up.p1 = 1 AND up.p2 = 1
+      ''',
+        [id],
+      );
+      int mastered = Sqflite.firstIntValue(masteredRes) ?? 0;
+
+      // Actualizar el registro del patrón
+      await db.update(
+        'patterns',
+        {'total_phrases': total, 'mastered_count': mastered},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    }
+    print("✅ Contadores de patrones recalculados correctamente.");
+  }
+
+  // --- MÉTODO PARA PRACTICE SCREEN (Mix Aleatorio) ---
+  Future<List<Map<String, dynamic>>> getRandomPhrases(int limit) async {
+    final db = await instance.database;
+    // Traemos frases al azar uniendo con la tabla de patrones para saber de qué tema son
+    final result = await db.rawQuery(
+      '''
+      SELECT ph.id, ph.text_en, ph.text_es, up.p1, up.p2, pat.title as pattern_title
+      FROM phrases ph
+      JOIN user_progress up ON ph.id = up.phrase_id
+      JOIN patterns pat ON ph.pattern_id = pat.id
+      ORDER BY RANDOM()
+      LIMIT ?
+    ''',
+      [limit],
+    );
+
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
   // Datos para Gráfica (Últimos 7 días)
   Future<List<double>> getWeeklyActivity() async {
     final db = await instance.database;

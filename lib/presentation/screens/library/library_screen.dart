@@ -34,7 +34,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _syncData() async {
+    // 1. Traer datos de la nube
     await _syncService.syncData();
+
+    // 2. IMPORTANTE: Recalcular los totales para que no queden en 0
+    await DatabaseHelper.instance.recalculateAllPatternCounts();
+
+    // 3. Recargar la UI
     _loadData();
   }
 
@@ -77,35 +83,41 @@ class _LibraryScreenState extends State<LibraryScreen> {
 
                         final patterns = snapshot.data!;
 
+                        // --- ALGORITMO DE EFECTO DOMINÓ ---
+                        // Calculamos hasta qué índice está permitido jugar.
+                        // Empezamos asumiendo que solo el primero (índice 0) está desbloqueado.
+                        int unlockedLimit = 0;
+
+                        for (int i = 0; i < patterns.length; i++) {
+                          final p = patterns[i];
+                          final int total = p['total_phrases'] ?? 0;
+                          final int mastered = p['mastered_count'] ?? 0;
+
+                          // Si este patrón está COMPLETO (y es válido), permitimos abrir el SIGUIENTE.
+                          if (total > 0 && mastered >= total) {
+                            unlockedLimit = i + 1;
+                          } else {
+                            // Si encontramos uno incompleto, ¡AQUÍ SE ROMPE LA CADENA!
+                            // Ya no seguimos revisando, los siguientes se quedan bloqueados.
+                            break;
+                          }
+                        }
+
                         return ListView.builder(
                           padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
                           itemCount: patterns.length,
                           itemBuilder: (context, index) {
                             final pattern = patterns[index];
 
-                            // --- LÓGICA DE BLOQUEO CORREGIDA ---
-                            bool isLocked = false;
-
-                            // Si no es el primero, revisamos el ANTERIOR
-                            if (index > 0) {
-                              final prevPattern = patterns[index - 1];
-                              final int prevTotal =
-                                  prevPattern['total_phrases'] ?? 0;
-                              final int prevMastered =
-                                  prevPattern['mastered_count'] ?? 0;
-
-                              // Si el anterior tiene frases y NO están todas masterizadas -> BLOQUEADO
-                              if (prevTotal > 0 && prevMastered < prevTotal) {
-                                isLocked = true;
-                              }
-                            }
+                            // Ahora el bloqueo es mucho más simple y estricto:
+                            // Si tu índice es mayor al límite permitido -> ESTÁS BLOQUEADO.
+                            final bool isLocked = index > unlockedLimit;
 
                             return _ModernPatternCard(
                               patternData: pattern,
                               index: index + 1,
                               isLocked: isLocked,
-                              onReturn:
-                                  _loadData, // Pasamos la función de recarga
+                              onReturn: _loadData,
                             );
                           },
                         );

@@ -1,3 +1,5 @@
+import 'package:chunking_english/presentation/screens/practice/practice_screen.dart';
+import 'package:chunking_english/presentation/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -37,15 +39,8 @@ final _router = GoRouter(
             GoRoute(
               path: '/practice',
               builder:
-                  (context, state) => const Scaffold(
-                    backgroundColor: AppTheme.bgDark,
-                    body: Center(
-                      child: Text(
-                        "Practice Mode Coming Soon",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
+                  (context, state) =>
+                      const PracticeScreen(), // <--- AQUÍ ESTÁ EL CAMBIO
             ),
           ],
         ),
@@ -65,16 +60,7 @@ final _router = GoRouter(
           routes: [
             GoRoute(
               path: '/profile',
-              builder:
-                  (context, state) => const Scaffold(
-                    backgroundColor: AppTheme.bgDark,
-                    body: Center(
-                      child: Text(
-                        "Profile Coming Soon",
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ),
-                  ),
+              builder: (context, state) => const ProfileScreen(), // <--- AQUÍ
             ),
           ],
         ),
