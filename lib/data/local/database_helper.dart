@@ -162,7 +162,7 @@ class DatabaseHelper {
       await db.rawUpdate(
         '''
         UPDATE daily_activity 
-        SET xp = xp + 10, phrases_count = phrases_count + 1 
+        SET xp = xp + 4, phrases_count = phrases_count + 1 
         WHERE date = ?
       ''',
         [today],
