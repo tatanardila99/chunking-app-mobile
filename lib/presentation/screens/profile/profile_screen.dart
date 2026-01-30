@@ -2,75 +2,116 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  // Variables para los datos dinámicos
+  int _streak = 0;
+  String _currentLevel = "A1";
+  String _listeningHours = "0.0";
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfileData();
+  }
+
+  // Refrescar datos cuando vuelves a la pestaña
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadProfileData();
+  }
+
+  Future<void> _loadProfileData() async {
+    try {
+      final db = DatabaseHelper.instance;
+      final streak = await db.getCurrentStreak();
+      final level = await db.getUserLevel();
+      final hours = await db.getTotalListeningHours();
+
+      if (mounted) {
+        setState(() {
+          _streak = streak;
+          _currentLevel = level;
+          _listeningHours = hours.toStringAsFixed(1);
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint("Error loading profile: $e");
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              // 1. FOTO DE PERFIL Y NOMBRE
-              _buildProfileHeader(),
-
-              const SizedBox(height: 32),
-
-              // 2. TARJETA RESUMEN (Estética)
-              _buildStatsSummary(),
-
-              const SizedBox(height: 32),
-
-              // 3. OPCIONES DE MENÚ
-              _buildSectionTitle("Settings"),
-              const SizedBox(height: 16),
-              _buildSettingsTile(
-                icon: Icons.notifications_outlined,
-                title: "Notifications",
-                subtitle: "Daily reminders",
-                trailing: Switch(
-                  value: true,
-                  activeColor: AppTheme.primaryGreen,
-                  onChanged: (val) {}, // Sin lógica por ahora
+        child:
+            _isLoading
+                ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppTheme.primaryGreen,
+                  ),
+                )
+                : SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 20),
+                      _buildProfileHeader(),
+                      const SizedBox(height: 32),
+                      _buildStatsSummary(), // Esta función ahora usa las variables
+                      const SizedBox(height: 32),
+                      _buildSectionTitle("Settings"),
+                      const SizedBox(height: 16),
+                      _buildSettingsTile(
+                        icon: Icons.notifications_outlined,
+                        title: "Notifications",
+                        subtitle: "Daily reminders",
+                        trailing: Switch(
+                          value: true,
+                          activeColor: AppTheme.primaryGreen,
+                          onChanged: (val) {},
+                        ),
+                      ),
+                      _buildSettingsTile(
+                        icon: Icons.language,
+                        title: "Language",
+                        subtitle: "English -> Spanish",
+                        trailing: const Icon(
+                          Icons.arrow_forward_ios,
+                          color: Colors.white54,
+                          size: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      _buildSectionTitle("Data & Storage"),
+                      const SizedBox(height: 16),
+                      _buildSettingsTile(
+                        icon: Icons.delete_outline_rounded,
+                        title: "Reset Progress",
+                        subtitle: "Clear all mastery data",
+                        iconColor: Colors.redAccent,
+                        onTap: () => _showResetDialog(context),
+                      ),
+                      _buildSettingsTile(
+                        icon: Icons.info_outline_rounded,
+                        title: "About",
+                        subtitle: "Version 1.0.0",
+                        trailing: const SizedBox(),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              _buildSettingsTile(
-                icon: Icons.language,
-                title: "Language",
-                subtitle: "English -> Spanish",
-                trailing: const Icon(
-                  Icons.arrow_forward_ios,
-                  color: Colors.white54,
-                  size: 16,
-                ),
-              ),
-
-              const SizedBox(height: 24),
-              _buildSectionTitle("Data & Storage"),
-              const SizedBox(height: 16),
-
-              // BOTÓN PELIGROSO: RESET PROGRESS
-              _buildSettingsTile(
-                icon: Icons.delete_outline_rounded,
-                title: "Reset Progress",
-                subtitle: "Clear all mastery data",
-                iconColor: Colors.redAccent,
-                onTap: () => _showResetDialog(context),
-              ),
-
-              _buildSettingsTile(
-                icon: Icons.info_outline_rounded,
-                title: "About",
-                subtitle: "Version 1.0.0",
-                trailing: const SizedBox(),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -95,7 +136,7 @@ class ProfileScreen extends StatelessWidget {
           ),
           child: const Icon(
             Icons.person_rounded,
-            size: 50,
+            size: 40,
             color: Colors.white,
           ),
         ),
@@ -128,21 +169,29 @@ class ProfileScreen extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [
+          // USAMOS LA VARIABLE _streak
           _buildStatItem(
-            "0",
+            "$_streak",
             "Streak",
             Icons.local_fire_department_rounded,
             Colors.orange,
           ),
           Container(width: 1, height: 40, color: Colors.white10),
+          // USAMOS LA VARIABLE _currentLevel
           _buildStatItem(
-            "A1",
+            _currentLevel,
             "Current Level",
             Icons.bar_chart_rounded,
             Colors.blue,
           ),
           Container(width: 1, height: 40, color: Colors.white10),
-          _buildStatItem("Free", "Plan", Icons.star_rounded, Colors.purple),
+          // USAMOS LA VARIABLE _listeningHours
+          _buildStatItem(
+            _listeningHours,
+            "Hours",
+            Icons.headphones_rounded,
+            Colors.purple,
+          ),
         ],
       ),
     );
@@ -270,14 +319,12 @@ class ProfileScreen extends StatelessWidget {
               ),
               TextButton(
                 onPressed: () async {
-                  // Lógica rápida para resetear
                   final db = await DatabaseHelper.instance.database;
                   await db.rawUpdate('UPDATE user_progress SET p1 = 0, p2 = 0');
-                  // También reseteamos los contadores cacheados en patterns
                   await db.rawUpdate('UPDATE patterns SET mastered_count = 0');
-
                   if (ctx.mounted) {
                     Navigator.pop(ctx);
+                    _loadProfileData(); // Recarga local después del reset
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       const SnackBar(
                         content: Text("Progress reset successfully!"),

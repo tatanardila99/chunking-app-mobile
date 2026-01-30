@@ -456,7 +456,7 @@ class _ModernPatternCard extends StatelessWidget {
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
                   Text(
-                    "Master all phrases (P1 & P2) in the previous level.",
+                    "Master all phrases (P1 & P2) in the previous level.💖​",
                     style: TextStyle(fontSize: 12),
                   ),
                 ],

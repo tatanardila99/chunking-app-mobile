@@ -58,12 +58,13 @@ class DatabaseHelper {
       )
     ''');
 
-    // D. Tabla de Actividad Diaria (Para Stats y Rachas) 📊
+    // D. Tabla de Actividad Diaria (Para Stats y Rachas).
     await db.execute('''
       CREATE TABLE daily_activity (
-        date TEXT PRIMARY KEY,  -- Formato "YYYY-MM-DD"
+        date TEXT PRIMARY KEY,
         xp INTEGER DEFAULT 0,
-        phrases_count INTEGER DEFAULT 0
+        phrases_count INTEGER DEFAULT 0,
+        listening_seconds INTEGER DEFAULT 0  -- <--- NUEVA COLUMNA
       )
     ''');
 
@@ -131,7 +132,7 @@ class DatabaseHelper {
   }
 
   // ===========================================================================
-  // SECCIÓN 2: LÓGICA DE ACTUALIZACIÓN (EL CEREBRO 🧠)
+  // SECCIÓN 2: LÓGICA DE ACTUALIZACIÓN
   // ===========================================================================
 
   Future<void> updateProgress(int phraseId, String field, bool value) async {
@@ -326,16 +327,48 @@ class DatabaseHelper {
     print("✅ Contadores de patrones recalculados correctamente.");
   }
 
-  // --- MÉTODO PARA PRACTICE SCREEN (Mix Aleatorio) ---
-  Future<List<Map<String, dynamic>>> getRandomPhrases(int limit) async {
+  // --- MIX INTELIGENTE (Solo patrones desbloqueados) ---
+  Future<List<Map<String, dynamic>>> getSmartMixPhrases(int limit) async {
     final db = await instance.database;
-    // Traemos frases al azar uniendo con la tabla de patrones para saber de qué tema son
+    final patterns = await db.query('patterns', orderBy: 'id ASC');
+
+    // 1. Identificar qué IDs de patrones están desbloqueados
+    List<int> unlockedPatternIds = [];
+
+    // El primero siempre está desbloqueado
+    if (patterns.isNotEmpty) {
+      unlockedPatternIds.add(patterns[0]['id'] as int);
+    }
+
+    for (int i = 0; i < patterns.length; i++) {
+      // Si este patrón está completado, desbloquea al siguiente (si existe)
+      final p = patterns[i];
+      final int total = (p['total_phrases'] as int?) ?? 0;
+      final int mastered = (p['mastered_count'] as int?) ?? 0;
+
+      if (total > 0 && mastered >= total) {
+        // Si hay un siguiente patrón, lo agregamos a la lista de "permitidos"
+        if (i + 1 < patterns.length) {
+          unlockedPatternIds.add(patterns[i + 1]['id'] as int);
+        }
+      } else {
+        // Si este no está completo, se rompe la cadena. No agregamos más.
+        break;
+      }
+    }
+
+    if (unlockedPatternIds.isEmpty) return [];
+
+    // 2. Traer frases SOLO de esos patrones permitidos
+    final idsString = unlockedPatternIds.join(','); // Ej: "1,2,3"
+
     final result = await db.rawQuery(
       '''
       SELECT ph.id, ph.text_en, ph.text_es, up.p1, up.p2, pat.title as pattern_title
       FROM phrases ph
       JOIN user_progress up ON ph.id = up.phrase_id
       JOIN patterns pat ON ph.pattern_id = pat.id
+      WHERE ph.pattern_id IN ($idsString)  -- <--- FILTRO MÁGICO
       ORDER BY RANDOM()
       LIMIT ?
     ''',
@@ -369,5 +402,176 @@ class DatabaseHelper {
       );
     }
     return activity;
+  }
+
+  // --- MÉTODO CALCULAR NIVEL ACTUAL ---
+  Future<String> getUserLevel() async {
+    final db = await instance.database;
+
+    // 1. Obtenemos todos los patrones ordenados
+    final patterns = await db.query('patterns', orderBy: 'id ASC');
+
+    String currentLevel = "A1";
+
+    for (int i = 0; i < patterns.length; i++) {
+      final p = patterns[i];
+
+      final int total = (p['total_phrases'] as int?) ?? 0;
+      final int mastered = (p['mastered_count'] as int?) ?? 0;
+
+      // Lógica de nivel:
+      // Si es el primero (i==0) O el anterior estaba completo...
+      bool previousCompleted = true;
+      if (i > 0) {
+        final prevP = patterns[i - 1];
+        final int prevTotal = (prevP['total_phrases'] as int?) ?? 0;
+        final int prevMastered = (prevP['mastered_count'] as int?) ?? 0;
+
+        if (prevTotal == 0 || prevMastered < prevTotal) {
+          previousCompleted = false;
+        }
+      }
+
+      if (previousCompleted) {
+        // Si el anterior está listo, asumo que MI nivel actual es el de ESTE patrón
+        currentLevel = (p['level'] as String?) ?? "A1";
+      } else {
+        // Si encontré un bloqueo, ya no sigo subiendo de nivel. Me quedo con el último válido.
+        break;
+      }
+    }
+
+    return currentLevel;
+  }
+
+  // --- MÉTODO 3: CALCULAR RACHA ACTUAL (STREAK) ---
+  Future<int> getCurrentStreak() async {
+    final db = await instance.database;
+
+    // 1. Obtenemos fechas de actividad
+    final result = await db.rawQuery(
+      'SELECT DISTINCT date FROM daily_activity ORDER BY date DESC',
+    );
+
+    if (result.isEmpty) return 0;
+
+    List<String> dates = result.map((e) => e['date'] as String).toList();
+
+    final now = DateTime.now();
+    final today =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+    final yesterdayDate = now.subtract(const Duration(days: 1));
+    final yesterday =
+        "${yesterdayDate.year}-${yesterdayDate.month.toString().padLeft(2, '0')}-${yesterdayDate.day.toString().padLeft(2, '0')}";
+
+    // Si la última actividad no es ni hoy ni ayer, la racha se rompió
+    if (dates.first != today && dates.first != yesterday) {
+      return 0;
+    }
+
+    int streak = 0;
+    DateTime currentDateCheck = DateTime.parse(dates.first);
+
+    for (String dateStr in dates) {
+      final date = DateTime.parse(dateStr);
+      if (isSameDay(date, currentDateCheck)) {
+        streak++;
+        currentDateCheck = currentDateCheck.subtract(const Duration(days: 1));
+      } else {
+        break;
+      }
+    }
+    return streak;
+  }
+
+  // Auxiliar para comparar fechas
+  bool isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  // --- MÉTODO 4: DATOS DE LA SEMANA (GRÁFICA) ---
+  // Devuelve una lista de 7 días con su XP o Frases
+  Future<List<Map<String, dynamic>>> getWeeklyStats() async {
+    final db = await instance.database;
+    final now = DateTime.now();
+
+    List<Map<String, dynamic>> stats = [];
+
+    // Generamos los últimos 7 días (de hace 6 días hasta hoy)
+    for (int i = 6; i >= 0; i--) {
+      final date = now.subtract(Duration(days: i));
+      final dateStr =
+          "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
+
+      // Buscamos si hay datos para ese día
+      final result = await db.query(
+        'daily_activity',
+        where: 'date = ?',
+        whereArgs: [dateStr],
+      );
+
+      // Si hay datos, los usamos. Si no, ponemos 0.
+      int phrases = 0;
+      if (result.isNotEmpty) {
+        phrases = (result.first['phrases_count'] as int?) ?? 0;
+      }
+
+      // Guardamos para la UI: Día de la semana (L, M, M...) y Valor
+      stats.add({
+        'day': _getDayLetter(date.weekday), // 1 = Mon -> "M"
+        'value': phrases,
+        'isToday': (i == 0), // El último es hoy
+      });
+    }
+    return stats;
+  }
+
+  String _getDayLetter(int weekday) {
+    const days = [
+      'M',
+      'T',
+      'W',
+      'T',
+      'F',
+      'S',
+      'S',
+    ]; // Lunes a Domingo (Inglés)
+    // O en español: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+    return days[weekday - 1];
+  }
+
+  // IMPORTANTE: Necesitamos actualizar 'phrases_count' cuando practicas
+  // Agrega este helper para llamar desde LessonScreen
+  Future<void> addPhraseCount(int count) async {
+    final db = await instance.database;
+    final now = DateTime.now();
+    final today =
+        "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
+
+    await db.rawInsert(
+      'INSERT OR IGNORE INTO daily_activity (date, xp, phrases_count, listening_seconds) VALUES (?, 0, 0, 0)',
+      [today],
+    );
+
+    await db.rawUpdate(
+      'UPDATE daily_activity SET phrases_count = phrases_count + ? WHERE date = ?',
+      [count, today],
+    );
+  }
+
+  // --- MÉTODO FALTANTE: CALCULAR HORAS TOTALES ---
+  Future<double> getTotalListeningHours() async {
+    final db = await instance.database;
+
+    // Sumamos la columna listening_seconds de todos los días registrados
+    final result = await db.rawQuery(
+      'SELECT SUM(listening_seconds) as total FROM daily_activity',
+    );
+
+    // Obtenemos el valor entero (o 0 si es nulo)
+    int totalSeconds = Sqflite.firstIntValue(result) ?? 0;
+
+    // Convertimos segundos a horas (Ej: 3600 seg = 1.0 hora)
+    return totalSeconds / 3600.0;
   }
 }

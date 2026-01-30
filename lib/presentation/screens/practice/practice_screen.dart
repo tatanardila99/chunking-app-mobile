@@ -19,10 +19,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _loadRandomMix();
   }
 
-  // Cargar 20 frases al azar
+  // Cargar Mix Inteligente de frases (Solo chunks  desbloqueados)
   Future<void> _loadRandomMix() async {
     setState(() => _isLoading = true);
-    final phrases = await DatabaseHelper.instance.getRandomPhrases(20);
+
+    //Usamos getSmartMixPhrases
+    final phrases = await DatabaseHelper.instance.getSmartMixPhrases(20);
+
     if (mounted) {
       setState(() {
         _randomPhrases = phrases;

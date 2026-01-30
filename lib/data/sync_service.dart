@@ -6,7 +6,7 @@ import 'local/database_helper.dart';
 class SyncService {
   // Cambia esto por tu IP local si usas emulador Android (10.0.2.2) o tu IP real si usas físico
   // Ejemplo Android Emulator: "http://10.0.2.2:3000/api/sync"
-  static const String _apiUrl = "http://192.168.1.11:3000/api/sync";
+  static const String _apiUrl = "http://192.168.1.18:3000/api/sync";
 
   Future<void> syncData() async {
     try {

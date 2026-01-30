@@ -46,6 +46,12 @@ class _LessonScreenState extends State<LessonScreen> {
 
     await DatabaseHelper.instance.updateProgress(phraseId, field, newValue);
 
+    // Si el usuario MARCÓ (newValue == true), contamos como actividad
+    if (newValue) {
+      // Sumamos 1 frase a la estadística del día
+      await DatabaseHelper.instance.addPhraseCount(1);
+    }
+
     setState(() {
       _phrases[index][field] = newValue ? 1 : 0;
     });
