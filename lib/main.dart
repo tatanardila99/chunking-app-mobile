@@ -1,3 +1,5 @@
+import 'package:chunking_english/presentation/screens/auth/login_screen.dart';
+import 'package:chunking_english/presentation/screens/auth/register_screen.dart';
 import 'package:chunking_english/presentation/screens/practice/practice_screen.dart';
 import 'package:chunking_english/presentation/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
@@ -15,8 +17,13 @@ void main() {
 
 // Configuración de GoRouter
 final _router = GoRouter(
-  initialLocation: '/library', // Arrancamos en Library
+  initialLocation: '/login', // Arrancamos en Library
   routes: [
+    GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+    GoRoute(
+      path: '/register',
+      builder: (context, state) => const RegisterScreen(),
+    ),
     // 1. EL SHELL DE NAVEGACIÓN (Con barra inferior)
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) {

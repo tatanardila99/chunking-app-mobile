@@ -43,6 +43,7 @@ dependencies:
   sqflite: ^2.3.0
   path: ^1.9.0
   http: ^1.2.0
+  flutter_secure_storage: ^9.0.0 # Para guardar el token de forma segura
 
 dev_dependencies:
   flutter_test:

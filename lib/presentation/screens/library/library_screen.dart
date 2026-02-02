@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
-import '../../../data/sync_service.dart';
+import '../../../data/services/sync_service.dart';
 
 class LibraryScreen extends StatefulWidget {
   const LibraryScreen({super.key});
