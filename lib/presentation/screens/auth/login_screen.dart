@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/snackbar_utils.dart'; // Asegúrate que esta ruta sea correcta
+import '../../../core/utils/snackbar_utils.dart';
 import '../../../data/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -66,70 +66,97 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
+            padding: const EdgeInsets.all(18.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // --- LOGO NEÓN ---
+                // --- INICIO NUEVO LOGO (NEURAL CORE) ---
                 Stack(
                   alignment: Alignment.center,
                   children: [
+                    // 1. EL RESPLANDOR (Glow)
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 120, // Un poco más grande para el brillo
+                      height: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppTheme.primaryGreen.withOpacity(0.2),
+                        color: const Color(0xFF00E676).withOpacity(0.15),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryGreen.withOpacity(0.4),
-                            blurRadius: 40,
+                            color: const Color(0xFF00E676).withOpacity(0.3),
+                            blurRadius: 50,
                             spreadRadius: 10,
                           ),
                         ],
                       ),
                     ),
+
+                    // 2. EL CUERPO PRINCIPAL (Gradiente Profundo)
                     Container(
-                      width: 90,
-                      height: 90,
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [AppTheme.primaryGreen, Color(0xFF00E676)],
+                          colors: [
+                            Color(0xFF0F2027), // Negro azulado
+                            Color(0xFF203A43), // Gris azulado metálico
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 10,
-                            offset: const Offset(0, 5),
+                            color: Colors.black.withOpacity(0.6),
+                            blurRadius: 20,
+                            offset: const Offset(5, 10),
                           ),
                         ],
                       ),
-                      child: const Icon(
-                        Icons.vpn_key_rounded,
-                        size: 45,
-                        color: Colors.black,
+                    ),
+
+                    // 3. EL ANILLO DE ENERGÍA (Indicador de Progreso)
+                    SizedBox(
+                      width: 90,
+                      height: 90,
+                      child: CircularProgressIndicator(
+                        value: 0.75, // Simula carga/progreso
+                        strokeWidth: 3,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00E676),
+                        ),
+                        backgroundColor: Colors.transparent,
                       ),
                     ),
-                    Positioned(
-                      top: 20,
-                      right: 25,
-                      child: Container(
-                        width: 15,
-                        height: 15,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.3),
-                          shape: BoxShape.circle,
-                        ),
+
+                    // 4. EL ÍCONO FLOTANTE (Con Gradiente)
+                    ShaderMask(
+                      shaderCallback: (Rect bounds) {
+                        return const LinearGradient(
+                          colors: [
+                            Color(0xFF00E676), // Verde Neón
+                            Color(0xFF29B6F6), // Azul Cian
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ).createShader(bounds);
+                      },
+                      child: const Icon(
+                        Icons.layers_outlined, // Representa "Chunking"
+                        size: 45,
+                        color: Colors.white,
                       ),
                     ),
                   ],
                 ),
 
-                // --- FIN LOGO ---
-                const SizedBox(height: 30),
+                // --- FIN NUEVO LOGO ---
+                const SizedBox(height: 40),
+
                 const Text(
                   "Welcome Back",
                   style: TextStyle(
@@ -138,10 +165,12 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 8),
                 const Text(
                   "Sign in to sync your progress",
                   style: TextStyle(color: AppTheme.textGrey, fontSize: 14),
                 ),
+
                 const SizedBox(height: 40),
 
                 // FORMULARIO
@@ -159,7 +188,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   icon: Icons.lock_outline,
                   isPassword: true,
                   textInputAction: TextInputAction.done,
-                  onSubmitted: (_) => _handleLogin(), // Login al dar Enter
+                  onSubmitted: (_) => _handleLogin(),
                 ),
 
                 const SizedBox(height: 10),

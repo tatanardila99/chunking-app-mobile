@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../core/utils/snackbar_utils.dart'; // Revisa la importación
+import '../../../core/utils/snackbar_utils.dart';
 import '../../../data/services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -106,46 +106,92 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // --- LOGO NEÓN (Icono diferente) ---
+                // --- INICIO NUEVO LOGO (NEURAL CORE - REGISTER) ---
                 Stack(
                   alignment: Alignment.center,
                   children: [
+                    // 1. EL RESPLANDOR (Glow)
                     Container(
-                      width: 100,
-                      height: 100,
+                      width: 120,
+                      height: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: AppTheme.primaryGreen.withOpacity(0.2),
+                        color: const Color(0xFF00E676).withOpacity(0.15),
                         boxShadow: [
                           BoxShadow(
-                            color: AppTheme.primaryGreen.withOpacity(0.4),
-                            blurRadius: 40,
+                            color: const Color(0xFF00E676).withOpacity(0.3),
+                            blurRadius: 50,
                             spreadRadius: 10,
                           ),
                         ],
                       ),
                     ),
+
+                    // 2. EL CUERPO PRINCIPAL (Gradiente Profundo)
                     Container(
-                      width: 90,
-                      height: 90,
+                      width: 100,
+                      height: 100,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: const LinearGradient(
-                          colors: [AppTheme.primaryGreen, Color(0xFF00E676)],
+                          colors: [
+                            Color(0xFF0F2027), // Negro azulado
+                            Color(0xFF203A43), // Gris azulado metálico
+                          ],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.1),
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.6),
+                            blurRadius: 20,
+                            offset: const Offset(5, 10),
+                          ),
+                        ],
                       ),
+                    ),
+
+                    // 3. EL ANILLO DE ENERGÍA (Estático o animado)
+                    SizedBox(
+                      width: 100,
+                      height: 100,
+                      child: CircularProgressIndicator(
+                        value:
+                            0.25, // Un cuarto de círculo para diferenciar del login
+                        strokeWidth: 3,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF00E676),
+                        ),
+                        backgroundColor: Colors.transparent,
+                      ),
+                    ),
+
+                    // 4. EL ÍCONO FLOTANTE (Con Gradiente)
+                    ShaderMask(
+                      shaderCallback: (Rect bounds) {
+                        return const LinearGradient(
+                          colors: [
+                            Color(0xFF00E676), // Verde Neón
+                            Color(0xFF29B6F6), // Azul Cian
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ).createShader(bounds);
+                      },
                       child: const Icon(
-                        Icons.person_add_alt_1_rounded,
+                        Icons.person_add_alt_1_rounded, // Icono de registro
                         size: 45,
-                        color: Colors.black,
+                        color: Colors.white,
                       ),
                     ),
                   ],
                 ),
 
-                // --- FIN LOGO ---
+                // --- FIN NUEVO LOGO ---
                 const SizedBox(height: 30),
                 const Text(
                   "Create Account",
