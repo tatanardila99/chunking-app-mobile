@@ -293,6 +293,14 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                     ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
+                      loadingBuilder: (context, child, progress) {
+                        if (progress == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(
+                            color: AppTheme.primaryGreen,
+                          ),
+                        );
+                      },
                       errorBuilder:
                           (context, error, stack) => const Icon(
                             Icons.broken_image,

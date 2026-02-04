@@ -117,14 +117,14 @@ class DatabaseHelper {
       'pattern_id': 1,
       'text_en': "I'm allowed to drive",
       'text_es': "Tengo permiso para conducir",
-      'image_url': null,
+      'image_url': 'https://picsum.photos/seed/car/300/300',
     });
     await db.insert('phrases', {
       'id': 2,
       'pattern_id': 1,
       'text_en': "I'm allowed to park here",
       'text_es': "Tengo permiso para estacionar aquí",
-      'image_url': null,
+      'image_url': 'https://picsum.photos/seed/parking/300/300',
     });
 
     // Inicializar progreso (SRS en 0)
@@ -160,14 +160,14 @@ class DatabaseHelper {
       'pattern_id': 2,
       'text_en': "It's worth trying",
       'text_es': "Vale la pena intentarlo",
-      'image_url': null,
+      'image_url': 'https://picsum.photos/seed/trying/300/300',
     });
     await db.insert('phrases', {
       'id': 4,
       'pattern_id': 2,
       'text_en': "It's worth waiting",
       'text_es': "Vale la pena esperar",
-      'image_url': null,
+      'image_url': 'https://picsum.photos/seed/waiting/300/300',
     });
     await db.insert('user_progress', {
       'phrase_id': 3,
