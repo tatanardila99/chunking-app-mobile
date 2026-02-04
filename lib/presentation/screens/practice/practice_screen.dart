@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
+import '../../../core/utils/snackbar_utils.dart';
+// Asegúrate de que esta sea la ruta correcta a tu nueva pantalla de juego
+import 'slot_machine_screen.dart';
 
 class PracticeScreen extends StatefulWidget {
   const PracticeScreen({super.key});
@@ -19,13 +22,10 @@ class _PracticeScreenState extends State<PracticeScreen> {
     _loadRandomMix();
   }
 
-  // Cargar Mix Inteligente de frases (Solo chunks  desbloqueados)
+  // Carga el mix de frases (Legacy P1/P2)
   Future<void> _loadRandomMix() async {
     setState(() => _isLoading = true);
-
-    //Usamos getSmartMixPhrases
     final phrases = await DatabaseHelper.instance.getSmartMixPhrases(20);
-
     if (mounted) {
       setState(() {
         _randomPhrases = phrases;
@@ -34,7 +34,34 @@ class _PracticeScreenState extends State<PracticeScreen> {
     }
   }
 
-  // Marcar progreso (Igual que en LessonScreen)
+  // --- LÓGICA PARA INICIAR EL JUEGO (SLOT MACHINE) ---
+  Future<void> _startSlotMachine() async {
+    // 1. Obtener frases que tocan hoy por SRS
+    final duePhrases = await DatabaseHelper.instance.getDuePhrasesForSRS(10);
+
+    if (duePhrases.isEmpty) {
+      if (mounted) {
+        SnackbarUtils.show(
+          context,
+          "You're all caught up! No phrases due for review today. 🔥",
+          isError: false,
+        );
+      }
+      return;
+    }
+
+    // 2. Navegar a la pantalla de la Tragamonedas
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SlotMachineScreen(phrases: duePhrases),
+        ),
+      ).then((_) => _loadRandomMix()); // Recargar al volver por si hubo cambios
+    }
+  }
+
+  // Marcar progreso individual (P1/P2)
   Future<void> _toggleProgress(int index, String field) async {
     final phrase = _randomPhrases[index];
     final int phraseId = phrase['id'];
@@ -64,20 +91,30 @@ class _PracticeScreenState extends State<PracticeScreen> {
                           color: AppTheme.primaryGreen,
                         ),
                       )
-                      : _randomPhrases.isEmpty
+                      : _randomPhrases.isEmpty && _isLoading == false
                       ? _buildEmptyState()
                       : RefreshIndicator(
                         onRefresh: _loadRandomMix,
                         color: AppTheme.primaryGreen,
                         backgroundColor: AppTheme.cardDark,
                         child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
-                          itemCount: _randomPhrases.length,
+                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                          // +1 para incluir la tarjeta de Slot Machine arriba
+                          itemCount: _randomPhrases.length + 1,
                           itemBuilder: (context, index) {
+                            // ÍNDICE 0: La tarjeta especial del modo juego
+                            if (index == 0) {
+                              return _buildSlotMachineHeroCard();
+                            }
+
+                            // RESTO: Las tarjetas de la lista (ajustamos index - 1)
+                            final phraseIndex = index - 1;
                             return _MixedPhraseCard(
-                              phrase: _randomPhrases[index],
-                              onToggleP1: () => _toggleProgress(index, 'p1'),
-                              onToggleP2: () => _toggleProgress(index, 'p2'),
+                              phrase: _randomPhrases[phraseIndex],
+                              onToggleP1:
+                                  () => _toggleProgress(phraseIndex, 'p1'),
+                              onToggleP2:
+                                  () => _toggleProgress(phraseIndex, 'p2'),
                             );
                           },
                         ),
@@ -86,22 +123,89 @@ class _PracticeScreenState extends State<PracticeScreen> {
           ],
         ),
       ),
+
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(
-          bottom: 92.0,
-        ), // <--- LEVANTAMOS 80 PIXELES
+        padding: const EdgeInsets.only(bottom: 92.0),
         child: FloatingActionButton.extended(
           onPressed: _loadRandomMix,
           backgroundColor: const Color.fromARGB(255, 213, 24, 147),
-          icon: const Icon(
-            Icons.shuffle,
-            color: Color.fromARGB(255, 251, 251, 251),
-          ),
+          icon: const Icon(Icons.shuffle, color: Colors.white),
           label: const Text(
-            "Remix",
-            style: TextStyle(
-              color: Color.fromARGB(255, 255, 255, 255),
-              fontWeight: FontWeight.bold,
+            "Remix List",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WIDGET: TARJETA HERO PARA EL JUEGO ---
+  Widget _buildSlotMachineHeroCard() {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 24, top: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)], // Gradiente Neón
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.cyan.withOpacity(0.3),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: _startSlotMachine,
+          borderRadius: BorderRadius.circular(24),
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.casino_outlined,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                const Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "THE SLOT MACHINE",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1,
+                        ),
+                      ),
+                      Text(
+                        "Master Chunks with Visual Anchors",
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.arrow_forward_ios_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+              ],
             ),
           ),
         ),
@@ -127,7 +231,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                 ),
               ),
               Text(
-                "Random Challenges For Today",
+                "Your Spaced Repetition Practice",
                 style: TextStyle(color: AppTheme.textGrey, fontSize: 14),
               ),
             ],
@@ -138,10 +242,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
               color: Colors.white.withOpacity(0.05),
               shape: BoxShape.circle,
             ),
-            child: const Icon(
-              Icons.fitness_center,
-              color: AppTheme.primaryGreen,
-            ),
+            child: const Icon(Icons.bolt_rounded, color: Colors.yellow),
           ),
         ],
       ),
@@ -151,7 +252,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
   Widget _buildEmptyState() {
     return const Center(
       child: Text(
-        "No phrases found yet.\nSync your library first!",
+        "No phrases to review.\nKeep learning in the Library!",
         textAlign: TextAlign.center,
         style: TextStyle(color: Colors.white54),
       ),
@@ -159,7 +260,8 @@ class _PracticeScreenState extends State<PracticeScreen> {
   }
 }
 
-// --- TARJETA DE FRASE (Versión Mix con Título del Patrón) ---
+// --- WIDGETS DE SOPORTE (TARJETAS Y BOTONES) ---
+
 class _MixedPhraseCard extends StatelessWidget {
   final Map<String, dynamic> phrase;
   final VoidCallback onToggleP1;
@@ -197,7 +299,6 @@ class _MixedPhraseCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Etiqueta pequeña del Patrón al que pertenece (Contexto)
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             margin: const EdgeInsets.only(bottom: 8),
@@ -214,7 +315,6 @@ class _MixedPhraseCard extends StatelessWidget {
               ),
             ),
           ),
-
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -231,7 +331,6 @@ class _MixedPhraseCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    // Tap to Reveal (Reutilizado)
                     _TapToReveal(
                       hiddenText: phrase['text_es'],
                       isMastered: isMastered,
@@ -262,8 +361,6 @@ class _MixedPhraseCard extends StatelessWidget {
     );
   }
 }
-
-// --- WIDGETS REUTILIZADOS (Para que no falte nada) ---
 
 class _TapToReveal extends StatefulWidget {
   final String hiddenText;
@@ -313,21 +410,14 @@ class _TapToRevealState extends State<_TapToReveal> {
                 style: TextStyle(
                   color: Colors.white.withOpacity(0.5),
                   fontSize: 12,
-                  fontWeight: FontWeight.w500,
                 ),
               ),
             ],
           ),
         ),
-        secondChild: Container(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Text(
-            widget.hiddenText,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
-            ),
-          ),
+        secondChild: Text(
+          widget.hiddenText,
+          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
         ),
         crossFadeState:
             _isRevealed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -364,16 +454,6 @@ class _CircularCheckButton extends StatelessWidget {
                     : Colors.white.withOpacity(0.3),
             width: 1.5,
           ),
-          boxShadow:
-              isActive
-                  ? [
-                    BoxShadow(
-                      color: AppTheme.primaryGreen.withOpacity(0.4),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                  : [],
         ),
         child: Center(
           child: Text(

@@ -17,12 +17,14 @@ class DatabaseHelper {
     final dbPath = await getDatabasesPath();
     final path = join(dbPath, filePath);
 
+    // Mantenemos version: 1. Al desinstalar la app, esto corre desde cero.
     return await openDatabase(path, version: 1, onCreate: _onCreate);
   }
 
-  // --- 1. CREACIÓN DE TABLAS ---
+  // --- 1. CREACIÓN DE TABLAS (ACTUALIZADO PARA SLOT MACHINE & SRS) ---
   Future<void> _onCreate(Database db, int version) async {
     // A. Tabla de Patrones (Metadata)
+    // CAMBIO: Agregado 'sort_order' para ordenamiento personalizado
     await db.execute('''
       CREATE TABLE patterns (
         id INTEGER PRIMARY KEY,
@@ -30,6 +32,7 @@ class DatabaseHelper {
         subtitle TEXT,
         grammar_rule TEXT,
         level TEXT,
+        sort_order INTEGER DEFAULT 0, -- <--- NUEVO
         is_active INTEGER DEFAULT 1,
         total_phrases INTEGER DEFAULT 0,
         mastered_count INTEGER DEFAULT 0
@@ -37,6 +40,7 @@ class DatabaseHelper {
     ''');
 
     // B. Tabla de Frases (Contenido)
+    // CAMBIO: Agregado 'image_url' para el Visual Anchor del Slot Machine
     await db.execute('''
       CREATE TABLE phrases (
         id INTEGER PRIMARY KEY,
@@ -44,36 +48,55 @@ class DatabaseHelper {
         text_en TEXT,
         text_es TEXT,
         audio_url TEXT,
+        image_url TEXT, -- <--- NUEVO: URL local o remota de la imagen
         FOREIGN KEY (pattern_id) REFERENCES patterns (id) ON DELETE CASCADE
       )
     ''');
 
-    // C. Tabla de Progreso (Estado P1 y P2)
+    // C. Tabla de Progreso (HÍBRIDO: P1/P2 + SRS)
+    // Mantenemos P1/P2 para que no se rompa tu LessonScreen actual.
+    // Agregamos campos SRS para el futuro Daily Mix.
     await db.execute('''
       CREATE TABLE user_progress (
         phrase_id INTEGER PRIMARY KEY,
-        p1 INTEGER DEFAULT 0,
-        p2 INTEGER DEFAULT 0,
+        p1 INTEGER DEFAULT 0,             -- Legacy (Lesson Screen)
+        p2 INTEGER DEFAULT 0,             -- Legacy (Lesson Screen)
+        srs_level INTEGER DEFAULT 0,      -- NUEVO: 0=Nuevo, 1=Aprendido, 2=Retenido, 3=Maestro
+        next_review_date INTEGER,         -- NUEVO: Timestamp (ms) para la próxima revisión
+        last_reviewed_date INTEGER,       -- NUEVO: Timestamp (ms) de la última práctica
+        fail_count INTEGER DEFAULT 0,     -- NUEVO: Contador de fallos
         FOREIGN KEY (phrase_id) REFERENCES phrases (id) ON DELETE CASCADE
       )
     ''');
 
-    // D. Tabla de Actividad Diaria (Para Stats y Rachas).
+    // D. Tabla de Actividad Diaria
     await db.execute('''
       CREATE TABLE daily_activity (
         date TEXT PRIMARY KEY,
         xp INTEGER DEFAULT 0,
         phrases_count INTEGER DEFAULT 0,
-        listening_seconds INTEGER DEFAULT 0  -- <--- NUEVA COLUMNA
+        listening_seconds INTEGER DEFAULT 0
       )
     ''');
 
-    // Insertar datos de prueba iniciales (Seed)
-    // NOTA: Si vas a importar tu Excel, borra o comenta esta línea después de la primera vez.
+    // E. NUEVA TABLA: SESSION LOGS (Para Speed Drill y Métricas)
+    await db.execute('''
+      CREATE TABLE session_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        phrase_id INTEGER,
+        mode TEXT,                -- 'standard', 'speed_drill', 'passive'
+        is_correct INTEGER,       -- 1 o 0
+        response_time_ms INTEGER, -- Tiempo de respuesta
+        created_at INTEGER,       -- Timestamp
+        FOREIGN KEY (phrase_id) REFERENCES phrases (id)
+      )
+    ''');
+
+    // Insertar datos de prueba
     await _seedData(db);
   }
 
-  // --- DATOS INICIALES (SEED) ---
+  // --- DATOS INICIALES (SEED ACTUALIZADO) ---
   Future<void> _seedData(Database db) async {
     // Patrón 1
     await db.insert('patterns', {
@@ -83,56 +106,87 @@ class DatabaseHelper {
       'grammar_rule':
           "Used to express permission. Followed by a verb in base form.",
       'level': "A1",
+      'sort_order': 1, // Nuevo
       'total_phrases': 2,
       'mastered_count': 0,
     });
 
-    // Frases del Patrón 1
+    // Frases del Patrón 1 (Con image_url null por ahora)
     await db.insert('phrases', {
       'id': 1,
       'pattern_id': 1,
       'text_en': "I'm allowed to drive",
       'text_es': "Tengo permiso para conducir",
+      'image_url': null,
     });
     await db.insert('phrases', {
       'id': 2,
       'pattern_id': 1,
       'text_en': "I'm allowed to park here",
       'text_es': "Tengo permiso para estacionar aquí",
+      'image_url': null,
     });
-    await db.insert('user_progress', {'phrase_id': 1, 'p1': 0, 'p2': 0});
-    await db.insert('user_progress', {'phrase_id': 2, 'p1': 0, 'p2': 0});
 
-    // Patrón 2 (Bloqueado inicialmente)
+    // Inicializar progreso (SRS en 0)
+    await db.insert('user_progress', {
+      'phrase_id': 1,
+      'p1': 0,
+      'p2': 0,
+      'srs_level': 0,
+      'fail_count': 0,
+    });
+    await db.insert('user_progress', {
+      'phrase_id': 2,
+      'p1': 0,
+      'p2': 0,
+      'srs_level': 0,
+      'fail_count': 0,
+    });
+
+    // Patrón 2
     await db.insert('patterns', {
       'id': 2,
       'title': "It's worth...",
       'subtitle': "Valor y recomendación",
       'grammar_rule': "Used to recommend something good. Followed by Verb-ING.",
       'level': "B1",
+      'sort_order': 2, // Nuevo
       'total_phrases': 2,
       'mastered_count': 0,
     });
 
-    // Frases del Patrón 2
     await db.insert('phrases', {
       'id': 3,
       'pattern_id': 2,
       'text_en': "It's worth trying",
       'text_es': "Vale la pena intentarlo",
+      'image_url': null,
     });
     await db.insert('phrases', {
       'id': 4,
       'pattern_id': 2,
       'text_en': "It's worth waiting",
       'text_es': "Vale la pena esperar",
+      'image_url': null,
     });
-    await db.insert('user_progress', {'phrase_id': 3, 'p1': 0, 'p2': 0});
-    await db.insert('user_progress', {'phrase_id': 4, 'p1': 0, 'p2': 0});
+    await db.insert('user_progress', {
+      'phrase_id': 3,
+      'p1': 0,
+      'p2': 0,
+      'srs_level': 0,
+      'fail_count': 0,
+    });
+    await db.insert('user_progress', {
+      'phrase_id': 4,
+      'p1': 0,
+      'p2': 0,
+      'srs_level': 0,
+      'fail_count': 0,
+    });
   }
 
   // ===========================================================================
-  // SECCIÓN 2: LÓGICA DE ACTUALIZACIÓN
+  // SECCIÓN 2: LÓGICA DE ACTUALIZACIÓN (LEGACY + FUTURE)
   // ===========================================================================
 
   Future<void> updateProgress(int phraseId, String field, bool value) async {
@@ -141,36 +195,26 @@ class DatabaseHelper {
     final today =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
 
-    // 1. Actualizar Checkbox (P1 o P2)
+    // 1. Actualizar Checkbox (P1 o P2) - Mantener lógica actual
     await db.rawUpdate(
-      '''
-      UPDATE user_progress 
-      SET $field = ? 
-      WHERE phrase_id = ?
-    ''',
+      'UPDATE user_progress SET $field = ? WHERE phrase_id = ?',
       [value ? 1 : 0, phraseId],
     );
 
-    // 2. Registrar XP y Actividad si completó algo
+    // 2. Registrar XP y Actividad
     if (value) {
-      // Si no existe fila de hoy, la crea en 0
       await db.rawInsert(
         'INSERT OR IGNORE INTO daily_activity (date, xp, phrases_count) VALUES (?, 0, 0)',
         [today],
       );
 
-      // Suma 10 XP y +1 Frase
       await db.rawUpdate(
-        '''
-        UPDATE daily_activity 
-        SET xp = xp + 4, phrases_count = phrases_count + 1 
-        WHERE date = ?
-      ''',
+        'UPDATE daily_activity SET xp = xp + 4, phrases_count = phrases_count + 1 WHERE date = ?',
         [today],
       );
     }
 
-    // 3. Recalcular % del Patrón Padre (Para desbloquear el siguiente nivel)
+    // 3. Recalcular % del Patrón Padre
     final List<Map<String, dynamic>> phraseResult = await db.query(
       'phrases',
       columns: ['pattern_id'],
@@ -184,27 +228,23 @@ class DatabaseHelper {
     }
   }
 
-  // Método privado para actualizar los contadores del patrón
   Future<void> _updatePatternMastery(Database db, int patternId) async {
-    // Total de frases en este patrón
     final totalRes = await db.rawQuery(
       'SELECT COUNT(*) FROM phrases WHERE pattern_id = ?',
       [patternId],
     );
     int total = Sqflite.firstIntValue(totalRes) ?? 0;
 
-    // Total de frases MASTERIZADAS (P1=1 Y P2=1)
     final masteredRes = await db.rawQuery(
       '''
       SELECT COUNT(*) FROM user_progress up
       JOIN phrases p ON up.phrase_id = p.id
       WHERE p.pattern_id = ? AND up.p1 = 1 AND up.p2 = 1
-    ''',
+      ''',
       [patternId],
     );
     int mastered = Sqflite.firstIntValue(masteredRes) ?? 0;
 
-    // Guardar en tabla patterns (Caché para la UI)
     await db.update(
       'patterns',
       {'total_phrases': total, 'mastered_count': mastered},
@@ -217,13 +257,12 @@ class DatabaseHelper {
   // SECCIÓN 3: LECTURAS PARA LA UI
   // ===========================================================================
 
-  // Para LibraryScreen
   Future<List<Map<String, dynamic>>> getPatternsWithProgress() async {
     final db = await instance.database;
-    return await db.query('patterns', orderBy: 'id ASC');
+    // Usamos el nuevo sort_order, y fallback a id
+    return await db.query('patterns', orderBy: 'sort_order ASC, id ASC');
   }
 
-  // Para LessonScreen (Info del Header)
   Future<Map<String, dynamic>?> getPatternById(dynamic id) async {
     final db = await instance.database;
     final patternId = id is String ? int.tryParse(id) ?? 0 : id;
@@ -235,7 +274,6 @@ class DatabaseHelper {
     return result.isNotEmpty ? result.first : null;
   }
 
-  // Para LessonScreen (Lista de Frases)
   Future<List<Map<String, dynamic>>> getPhrasesByPatternId(
     dynamic patternId,
   ) async {
@@ -244,11 +282,11 @@ class DatabaseHelper {
 
     final result = await db.rawQuery(
       '''
-      SELECT ph.id, ph.text_en, ph.text_es, up.p1, up.p2
+      SELECT ph.id, ph.text_en, ph.text_es, ph.image_url, up.p1, up.p2, up.srs_level
       FROM phrases ph
       JOIN user_progress up ON ph.id = up.phrase_id
       WHERE ph.pattern_id = ?
-    ''',
+      ''',
       [id],
     );
 
@@ -256,16 +294,40 @@ class DatabaseHelper {
   }
 
   // ===========================================================================
-  // SECCIÓN 4: ESTADÍSTICAS (StatsScreen)
+  // SECCIÓN 4: ESTADÍSTICAS & NUEVOS MÉTODOS SRS
   // ===========================================================================
 
-  // XP de Hoy
+  // NUEVO: Obtener frases "Vencidas" para el Daily Mix (SRS)
+  Future<List<Map<String, dynamic>>> getDuePhrasesForSRS(int limit) async {
+    final db = await instance.database;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+    // Lógica: Traer frases donde next_review_date ya pasó O es nulo (nuevas)
+    // También traemos el pattern_title para el Slot Machine
+    final result = await db.rawQuery(
+      '''
+      SELECT ph.id, ph.text_en, ph.text_es, ph.image_url, 
+             pat.title as pattern_title, 
+             up.srs_level, up.next_review_date
+      FROM phrases ph
+      JOIN user_progress up ON ph.id = up.phrase_id
+      JOIN patterns pat ON ph.pattern_id = pat.id
+      WHERE (up.next_review_date <= ? OR up.next_review_date IS NULL)
+      ORDER BY up.next_review_date ASC
+      LIMIT ?
+    ''',
+      [nowMs, limit],
+    );
+
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
+  }
+
+  // (Mantenemos tus métodos de Stats originales)
   Future<int> getDailyXP() async {
     final db = await instance.database;
     final now = DateTime.now();
     final today =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-
     final result = await db.query(
       'daily_activity',
       columns: ['xp'],
@@ -275,48 +337,30 @@ class DatabaseHelper {
     return result.isNotEmpty ? (result.first['xp'] as int) : 0;
   }
 
-  // Resumen Global
   Future<Map<String, int>> getGlobalStats() async {
     final db = await instance.database;
-    // Total Chunks (Frases al 100%)
     final masteredRes = await db.rawQuery(
       'SELECT COUNT(*) FROM user_progress WHERE p1=1 AND p2=1',
     );
     final mastered = Sqflite.firstIntValue(masteredRes) ?? 0;
-
     return {'chunks_collected': mastered, 'accuracy': 94};
   }
 
-  // --- MÉTODO DE REPARACIÓN DE DATOS ---
-  // Llama a esto después de sincronizar para arreglar los contadores en 0
   Future<void> recalculateAllPatternCounts() async {
     final db = await instance.database;
-
-    // 1. Obtener todos los patrones
     final patterns = await db.query('patterns');
-
     for (var pattern in patterns) {
       int id = pattern['id'] as int;
-
-      // Contar frases totales reales en la BD local
       final totalRes = await db.rawQuery(
         'SELECT COUNT(*) FROM phrases WHERE pattern_id = ?',
         [id],
       );
       int total = Sqflite.firstIntValue(totalRes) ?? 0;
-
-      // Contar masterizadas reales
       final masteredRes = await db.rawQuery(
-        '''
-        SELECT COUNT(*) FROM user_progress up
-        JOIN phrases p ON up.phrase_id = p.id
-        WHERE p.pattern_id = ? AND up.p1 = 1 AND up.p2 = 1
-      ''',
+        'SELECT COUNT(*) FROM user_progress up JOIN phrases p ON up.phrase_id = p.id WHERE p.pattern_id = ? AND up.p1 = 1 AND up.p2 = 1',
         [id],
       );
       int mastered = Sqflite.firstIntValue(masteredRes) ?? 0;
-
-      // Actualizar el registro del patrón
       await db.update(
         'patterns',
         {'total_phrases': total, 'mastered_count': mastered},
@@ -327,68 +371,19 @@ class DatabaseHelper {
     print("✅ Contadores de patrones recalculados correctamente.");
   }
 
-  // --- MIX INTELIGENTE (Solo patrones desbloqueados) ---
+  // (Este método se mantiene por si quieres un mix aleatorio, pero el de SRS es mejor)
   Future<List<Map<String, dynamic>>> getSmartMixPhrases(int limit) async {
-    final db = await instance.database;
-    final patterns = await db.query('patterns', orderBy: 'id ASC');
-
-    // 1. Identificar qué IDs de patrones están desbloqueados
-    List<int> unlockedPatternIds = [];
-
-    // El primero siempre está desbloqueado
-    if (patterns.isNotEmpty) {
-      unlockedPatternIds.add(patterns[0]['id'] as int);
-    }
-
-    for (int i = 0; i < patterns.length; i++) {
-      // Si este patrón está completado, desbloquea al siguiente (si existe)
-      final p = patterns[i];
-      final int total = (p['total_phrases'] as int?) ?? 0;
-      final int mastered = (p['mastered_count'] as int?) ?? 0;
-
-      if (total > 0 && mastered >= total) {
-        // Si hay un siguiente patrón, lo agregamos a la lista de "permitidos"
-        if (i + 1 < patterns.length) {
-          unlockedPatternIds.add(patterns[i + 1]['id'] as int);
-        }
-      } else {
-        // Si este no está completo, se rompe la cadena. No agregamos más.
-        break;
-      }
-    }
-
-    if (unlockedPatternIds.isEmpty) return [];
-
-    // 2. Traer frases SOLO de esos patrones permitidos
-    final idsString = unlockedPatternIds.join(','); // Ej: "1,2,3"
-
-    final result = await db.rawQuery(
-      '''
-      SELECT ph.id, ph.text_en, ph.text_es, up.p1, up.p2, pat.title as pattern_title
-      FROM phrases ph
-      JOIN user_progress up ON ph.id = up.phrase_id
-      JOIN patterns pat ON ph.pattern_id = pat.id
-      WHERE ph.pattern_id IN ($idsString)  -- <--- FILTRO MÁGICO
-      ORDER BY RANDOM()
-      LIMIT ?
-    ''',
-      [limit],
-    );
-
-    return result.map((e) => Map<String, dynamic>.from(e)).toList();
+    return getDuePhrasesForSRS(limit); // Ahora redirigimos al SRS
   }
 
-  // Datos para Gráfica (Últimos 7 días)
   Future<List<double>> getWeeklyActivity() async {
     final db = await instance.database;
     final now = DateTime.now();
     List<double> activity = [];
-
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
       final dateStr =
           "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-
       final result = await db.query(
         'daily_activity',
         columns: ['phrases_count'],
@@ -404,74 +399,50 @@ class DatabaseHelper {
     return activity;
   }
 
-  // --- MÉTODO CALCULAR NIVEL ACTUAL ---
   Future<String> getUserLevel() async {
     final db = await instance.database;
-
-    // 1. Obtenemos todos los patrones ordenados
-    final patterns = await db.query('patterns', orderBy: 'id ASC');
-
+    final patterns = await db.query(
+      'patterns',
+      orderBy: 'sort_order ASC, id ASC',
+    );
     String currentLevel = "A1";
-
     for (int i = 0; i < patterns.length; i++) {
       final p = patterns[i];
-
       final int total = (p['total_phrases'] as int?) ?? 0;
       final int mastered = (p['mastered_count'] as int?) ?? 0;
-
-      // Lógica de nivel:
-      // Si es el primero (i==0) O el anterior estaba completo...
       bool previousCompleted = true;
       if (i > 0) {
         final prevP = patterns[i - 1];
         final int prevTotal = (prevP['total_phrases'] as int?) ?? 0;
         final int prevMastered = (prevP['mastered_count'] as int?) ?? 0;
-
-        if (prevTotal == 0 || prevMastered < prevTotal) {
+        if (prevTotal == 0 || prevMastered < prevTotal)
           previousCompleted = false;
-        }
       }
-
       if (previousCompleted) {
-        // Si el anterior está listo, asumo que MI nivel actual es el de ESTE patrón
         currentLevel = (p['level'] as String?) ?? "A1";
       } else {
-        // Si encontré un bloqueo, ya no sigo subiendo de nivel. Me quedo con el último válido.
         break;
       }
     }
-
     return currentLevel;
   }
 
-  // --- MÉTODO 3: CALCULAR RACHA ACTUAL (STREAK) ---
   Future<int> getCurrentStreak() async {
     final db = await instance.database;
-
-    // 1. Obtenemos fechas de actividad
     final result = await db.rawQuery(
       'SELECT DISTINCT date FROM daily_activity ORDER BY date DESC',
     );
-
     if (result.isEmpty) return 0;
-
     List<String> dates = result.map((e) => e['date'] as String).toList();
-
     final now = DateTime.now();
     final today =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
     final yesterdayDate = now.subtract(const Duration(days: 1));
     final yesterday =
         "${yesterdayDate.year}-${yesterdayDate.month.toString().padLeft(2, '0')}-${yesterdayDate.day.toString().padLeft(2, '0')}";
-
-    // Si la última actividad no es ni hoy ni ayer, la racha se rompió
-    if (dates.first != today && dates.first != yesterday) {
-      return 0;
-    }
-
+    if (dates.first != today && dates.first != yesterday) return 0;
     int streak = 0;
     DateTime currentDateCheck = DateTime.parse(dates.first);
-
     for (String dateStr in dates) {
       final date = DateTime.parse(dateStr);
       if (isSameDay(date, currentDateCheck)) {
@@ -484,94 +455,62 @@ class DatabaseHelper {
     return streak;
   }
 
-  // Auxiliar para comparar fechas
   bool isSameDay(DateTime a, DateTime b) {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  // --- MÉTODO 4: DATOS DE LA SEMANA (GRÁFICA) ---
-  // Devuelve una lista de 7 días con su XP o Frases
   Future<List<Map<String, dynamic>>> getWeeklyStats() async {
     final db = await instance.database;
     final now = DateTime.now();
-
     List<Map<String, dynamic>> stats = [];
-
-    // Generamos los últimos 7 días (de hace 6 días hasta hoy)
     for (int i = 6; i >= 0; i--) {
       final date = now.subtract(Duration(days: i));
       final dateStr =
           "${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}";
-
-      // Buscamos si hay datos para ese día
       final result = await db.query(
         'daily_activity',
         where: 'date = ?',
         whereArgs: [dateStr],
       );
-
-      // Si hay datos, los usamos. Si no, ponemos 0.
       int phrases = 0;
       if (result.isNotEmpty) {
         phrases = (result.first['phrases_count'] as int?) ?? 0;
       }
-
-      // Guardamos para la UI: Día de la semana (L, M, M...) y Valor
       stats.add({
-        'day': _getDayLetter(date.weekday), // 1 = Mon -> "M"
+        'day': _getDayLetter(date.weekday),
         'value': phrases,
-        'isToday': (i == 0), // El último es hoy
+        'isToday': (i == 0),
       });
     }
     return stats;
   }
 
   String _getDayLetter(int weekday) {
-    const days = [
-      'M',
-      'T',
-      'W',
-      'T',
-      'F',
-      'S',
-      'S',
-    ]; // Lunes a Domingo (Inglés)
-    // O en español: ['L', 'M', 'M', 'J', 'V', 'S', 'D']
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
     return days[weekday - 1];
   }
 
-  // IMPORTANTE: Necesitamos actualizar 'phrases_count' cuando practicas
-  // Agrega este helper para llamar desde LessonScreen
   Future<void> addPhraseCount(int count) async {
     final db = await instance.database;
     final now = DateTime.now();
     final today =
         "${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}";
-
     await db.rawInsert(
       'INSERT OR IGNORE INTO daily_activity (date, xp, phrases_count, listening_seconds) VALUES (?, 0, 0, 0)',
       [today],
     );
-
     await db.rawUpdate(
       'UPDATE daily_activity SET phrases_count = phrases_count + ? WHERE date = ?',
       [count, today],
     );
   }
 
-  // --- MÉTODO FALTANTE: CALCULAR HORAS TOTALES ---
   Future<double> getTotalListeningHours() async {
     final db = await instance.database;
-
-    // Sumamos la columna listening_seconds de todos los días registrados
     final result = await db.rawQuery(
       'SELECT SUM(listening_seconds) as total FROM daily_activity',
     );
-
-    // Obtenemos el valor entero (o 0 si es nulo)
     int totalSeconds = Sqflite.firstIntValue(result) ?? 0;
-
-    // Convertimos segundos a horas (Ej: 3600 seg = 1.0 hora)
     return totalSeconds / 3600.0;
   }
 }

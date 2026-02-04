@@ -17,7 +17,7 @@ void main() {
 
 // Configuración de GoRouter
 final _router = GoRouter(
-  initialLocation: '/login', // Arrancamos en Library
+  initialLocation: '/library', // Arrancamos en Library
   routes: [
     GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
     GoRoute(
