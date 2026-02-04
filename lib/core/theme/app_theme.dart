@@ -4,7 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 class AppTheme {
   static const Color bgDark = Color(0xFF121212);
   static const Color cardDark = Color(0xFF1E1E1E);
-  static const Color primaryGreen = Color(0xFF00E676); // Verde Neón
+  static const Color primaryGreen = Color(0xFF21E5A0); // Verde Neón
   static const Color accentBlue = Color(0xFF2979FF); // Azul para gráficos
   static const Color textWhite = Color(0xFFFFFFFF);
   static const Color textGrey = Color(0xFFB3B3B3);

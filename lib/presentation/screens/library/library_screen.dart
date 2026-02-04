@@ -1,7 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
 import '../../../data/services/sync_service.dart';
 
@@ -20,11 +19,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _loadData();
-    // Intentamos sincronizar en segundo plano al iniciar
     _syncService.syncData().then((_) => _loadData());
   }
 
-  // ESTA ES LA CLAVE: Reasignar el Future fuerza a la UI a volver a leer la BD
   void _loadData() {
     if (mounted) {
       setState(() {
@@ -34,170 +31,229 @@ class _LibraryScreenState extends State<LibraryScreen> {
   }
 
   Future<void> _syncData() async {
-    // 1. Traer datos de la nube
     await _syncService.syncData();
-
-    // 2. IMPORTANTE: Recalcular los totales para que no queden en 0
     await DatabaseHelper.instance.recalculateAllPatternCounts();
-
-    // 3. Recargar la UI
     _loadData();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Fondo oscuro profundo extraído de la imagen
+    const Color kBackground = Color(0xFF12151C);
+    const Color kAccentCyan = Color(0xFF21E5A0);
+
     return Scaffold(
-      backgroundColor: AppTheme.bgDark,
+      backgroundColor: kBackground,
       body: SafeArea(
         bottom: false,
         child: Stack(
           children: [
-            Column(
-              children: [
-                _buildHeader(),
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _syncData,
-                    color: AppTheme.primaryGreen,
-                    backgroundColor: AppTheme.cardDark,
-                    child: FutureBuilder<List<Map<String, dynamic>>>(
-                      future: _patternsFuture,
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              color: AppTheme.primaryGreen,
-                            ),
-                          );
-                        }
+            // Contenido Principal
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 20),
+                  // Header Personalizado
+                  _buildHeader(kAccentCyan),
+                  const SizedBox(height: 30),
 
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(
-                            child: Text(
-                              "No patterns found.",
-                              style: TextStyle(color: Colors.white),
-                            ),
-                          );
-                        }
-
-                        final patterns = snapshot.data!;
-
-                        // --- ALGORITMO DE EFECTO DOMINÓ ---
-                        // Calculamos hasta qué índice está permitido jugar.
-                        // Empezamos asumiendo que solo el primero (índice 0) está desbloqueado.
-                        int unlockedLimit = 0;
-
-                        for (int i = 0; i < patterns.length; i++) {
-                          final p = patterns[i];
-                          final int total = p['total_phrases'] ?? 0;
-                          final int mastered = p['mastered_count'] ?? 0;
-
-                          // Si este patrón está COMPLETO (y es válido), permitimos abrir el SIGUIENTE.
-                          if (total > 0 && mastered >= total) {
-                            unlockedLimit = i + 1;
-                          } else {
-                            // Si encontramos uno incompleto, ¡AQUÍ SE ROMPE LA CADENA!
-                            // Ya no seguimos revisando, los siguientes se quedan bloqueados.
-                            break;
-                          }
-                        }
-
-                        return ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(20, 0, 20, 140),
-                          itemCount: patterns.length,
-                          itemBuilder: (context, index) {
-                            final pattern = patterns[index];
-
-                            // Ahora el bloqueo es mucho más simple y estricto:
-                            // Si tu índice es mayor al límite permitido -> ESTÁS BLOQUEADO.
-                            final bool isLocked = index > unlockedLimit;
-
-                            return _ModernPatternCard(
-                              patternData: pattern,
-                              index: index + 1,
-                              isLocked: isLocked,
-                              onReturn: _loadData,
-                            );
-                          },
-                        );
-                      },
+                  // Título de sección (como "Active Habits")
+                  const Text(
+                    "Your Path",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
                     ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 16),
+
+                  // Grid de Niveles
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: _syncData,
+                      color: kAccentCyan,
+                      backgroundColor: const Color(0xFF1F232F),
+                      child: FutureBuilder<List<Map<String, dynamic>>>(
+                        future: _patternsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return Center(
+                              child: CircularProgressIndicator(
+                                color: kAccentCyan,
+                              ),
+                            );
+                          }
+                          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                            return const Center(
+                              child: Text(
+                                "No patterns found",
+                                style: TextStyle(color: Colors.white54),
+                              ),
+                            );
+                          }
+
+                          final patterns = snapshot.data!;
+
+                          // Lógica de desbloqueo (Misma lógica tuya)
+                          int unlockedLimit = 0;
+                          for (int i = 0; i < patterns.length; i++) {
+                            final p = patterns[i];
+                            final int total = p['total_phrases'] ?? 0;
+                            final int mastered = p['mastered_count'] ?? 0;
+                            if (total > 0 && mastered >= total) {
+                              unlockedLimit = i + 1;
+                            } else {
+                              break;
+                            }
+                          }
+
+                          // Usamos GridView para imitar las tarjetas cuadradas ("Hydration", "Deep Work")
+                          return GridView.builder(
+                            padding: const EdgeInsets.only(bottom: 150),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2, // 2 Columnas
+                                  crossAxisSpacing: 16,
+                                  mainAxisSpacing: 16,
+                                  childAspectRatio:
+                                      0.85, // Tarjetas un poco más altas que anchas
+                                ),
+                            itemCount: patterns.length,
+                            itemBuilder: (context, index) {
+                              final pattern = patterns[index];
+                              final bool isLocked = index > unlockedLimit;
+
+                              return _DashboardCard(
+                                patternData: pattern,
+                                index: index + 1,
+                                isLocked: isLocked,
+                                onReturn: _loadData,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
+
             // Reproductor Flotante
-            const Positioned(
-              bottom: 110,
-              left: 20,
-              right: 20,
-              child: _MiniPlayer(),
-            ),
+            //const Positioned(
+            //  bottom: 110,
+            //  left: 20,
+            //  right: 20,
+            //  child: _MiniPlayer(),
+            //),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                "Library",
-                style: TextStyle(color: AppTheme.textGrey, letterSpacing: 1.0),
-              ),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  shape: BoxShape.circle,
-                ),
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.sync,
-                    color: AppTheme.primaryGreen,
-                    size: 20,
+  Widget _buildHeader(Color accentColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                // Avatar simulado
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    image: const DecorationImage(
+                      // Placeholder para avatar si tienes uno
+                      image: AssetImage('assets/images/logo.png'),
+                      opacity: 0.8,
+                      fit: BoxFit.cover,
+                    ),
                   ),
-                  onPressed: _syncData,
+                  child: const Icon(
+                    Icons.person,
+                    color: Colors.white70,
+                  ), // Fallback
                 ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "WELCOME BACK",
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.0,
+                      ),
+                    ),
+                    const Text(
+                      "Tatan Ardila",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                shape: BoxShape.circle,
               ),
+              child: const Icon(
+                Icons.notifications_none_rounded,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 25),
+        // Texto gigante "Build your 1% today"
+        RichText(
+          text: TextSpan(
+            style: const TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'Poppins', // Asegúrate de tener una fuente bold
+              color: Colors.white,
+              height: 1.2,
+            ),
+            children: [
+              const TextSpan(text: "Build your "),
+              TextSpan(text: "1%", style: TextStyle(color: accentColor)),
+              const TextSpan(text: " today"),
             ],
           ),
-          const SizedBox(height: 10),
-          const Text(
-            "My Patterns",
-            style: TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 5),
-          const Text(
-            "English Chunking Method",
-            style: TextStyle(color: AppTheme.textGrey, fontSize: 14),
-          ),
-          const SizedBox(height: 10),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-class _ModernPatternCard extends StatelessWidget {
+class _DashboardCard extends StatelessWidget {
   final Map<String, dynamic> patternData;
   final int index;
   final bool isLocked;
   final VoidCallback onReturn;
 
-  const _ModernPatternCard({
+  const _DashboardCard({
+    super.key,
     required this.patternData,
     required this.index,
     required this.isLocked,
@@ -206,346 +262,269 @@ class _ModernPatternCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // --- COLORES Y ESTADO ---
+    const Color kAccentCyan = Color(0xFF21E5A0);
+    // Un gris azulado oscuro pero con un toque más rico para el gradiente
+    const Color kCardDarkStart = Color(0xFF252A35);
+    const Color kCardDarkEnd = Color(0xFF1F232F);
+
     final String title = patternData['title'];
-    final String subtitle = patternData['subtitle'] ?? '';
     final int total = patternData['total_phrases'] ?? 0;
     final int mastered = patternData['mastered_count'] ?? 0;
-
-    // Calculamos progreso
     final double progress =
         total > 0 ? (mastered / total).clamp(0.0, 1.0) : 0.0;
     final bool isCompleted = progress >= 1.0;
 
-    // Está activo si NO está bloqueado y NO está completado al 100%
-    // OJO: Si ya empezaste (progress > 0), también cuenta como activo para mostrar la barra
-    final bool showProgressBar = !isLocked && (progress > 0 || isCompleted);
+    // Determina si la tarjeta está activa (ni bloqueada ni terminada al 100%)
+    final bool isActive = !isLocked && !isCompleted && progress > 0;
+
+    // Color principal de esta tarjeta según su estado
+    final Color stateColor =
+        isLocked
+            ? Colors.white.withOpacity(0.2) // Apagado
+            : isCompleted
+            ? kAccentCyan // Brillante si terminó
+            : kAccentCyan.withOpacity(0.8); // Un poco menos si está en progreso
 
     return GestureDetector(
       onTap: () async {
         if (isLocked) {
-          _showLockedAlert(context);
+          // Haptic feedback suave al tocar algo bloqueado
+          HapticFeedback.mediumImpact();
+          ScaffoldMessenger.of(context).clearSnackBars();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: const [
+                  Icon(Icons.lock_outline, color: Colors.white),
+                  SizedBox(width: 10),
+                  Text("Complete previous levels to unlock! 🚀"),
+                ],
+              ),
+              backgroundColor: const Color(0xFF2A2F3A),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          );
         } else {
-          // --- AQUÍ ESTÁ LA MAGIA ---
-          // Usamos await para esperar que vuelvas de la otra pantalla
           await context.push('/lesson/${patternData['id']}');
-          // Al volver, ejecutamos la recarga inmediatamente
-          print("Volviendo a Library... Recargando UI");
           onReturn();
         }
       },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 16),
-        padding: const EdgeInsets.all(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
         decoration: BoxDecoration(
-          color:
-              isCompleted
-                  ? const Color(0xFF1B5E20).withOpacity(0.15)
-                  : const Color(0xFF1E1E1E),
-          borderRadius: BorderRadius.circular(24),
+          // 1. GRADIENTE DE FONDO (Sutil profundidad)
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors:
+                isLocked
+                    ? [
+                      const Color(0xFF1A1D24),
+                      const Color(0xFF14171C),
+                    ] // Más plano si está bloqueado
+                    : [
+                      kCardDarkStart,
+                      kCardDarkEnd,
+                    ], // Rico si está desbloqueado
+          ),
+          borderRadius: BorderRadius.circular(26), // Bordes muy suaves
+          // 2. BORDE NEÓN (Solo si no está bloqueado)
           border: Border.all(
             color:
-                (progress > 0 && !isLocked)
-                    ? AppTheme.primaryGreen.withOpacity(0.5)
-                    : Colors.white.withOpacity(0.05),
-            width: (progress > 0 && !isLocked) ? 1.5 : 1,
+                isLocked
+                    ? Colors.white.withOpacity(0.05)
+                    : stateColor.withOpacity(isCompleted ? 0.5 : 0.3),
+            width: isLocked ? 1 : 1.5,
           ),
+
+          // 3. SOMBRA RESPLANDOR (El toque "espectacular")
           boxShadow: [
+            if (!isLocked)
+              BoxShadow(
+                color: stateColor.withOpacity(
+                  isCompleted ? 0.2 : 0.12,
+                ), // Color del neón
+                blurRadius: 25, // Muy difuminado
+                spreadRadius: -5, // Para que no se expanda mucho, solo un halo
+                offset: const Offset(0, 8),
+              ),
+            // Sombra de profundidad estándar
             BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: Colors.black.withOpacity(0.4),
+              blurRadius: 15,
+              offset: const Offset(0, 10),
             ),
           ],
         ),
-        child: Column(
-          children: [
-            Row(
-              children: [
-                // 1. Indicador Circular
-                Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color:
-                        isLocked
-                            ? Colors.white.withOpacity(0.05)
-                            : isCompleted
-                            ? AppTheme.primaryGreen
-                            : AppTheme.bgDark,
-                    shape: BoxShape.circle,
-                    border: Border.all(
+        child: Padding(
+          padding: const EdgeInsets.all(18.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // --- CABECERA: ICONO Y ESTADO ---
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Icono "envasado" con efecto cristal
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
                       color:
                           isLocked
-                              ? Colors.transparent
-                              : AppTheme.primaryGreen.withOpacity(0.3),
+                              ? Colors.white.withOpacity(0.03)
+                              : stateColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color:
+                            isLocked
+                                ? Colors.transparent
+                                : stateColor.withOpacity(0.2),
+                      ),
+                    ),
+                    child: Icon(
+                      isLocked
+                          ? Icons.lock_rounded
+                          : isCompleted
+                          ? Icons.check_circle_outline_rounded
+                          : Icons.grid_view_rounded,
+                      color: isLocked ? Colors.white24 : stateColor,
+                      size: 22,
                     ),
                   ),
-                  child: Center(
-                    child:
-                        isLocked
-                            ? Icon(
-                              Icons.lock_rounded,
-                              color: Colors.white.withOpacity(0.3),
-                              size: 20,
-                            )
-                            : isCompleted
-                            ? const Icon(
-                              Icons.check,
-                              color: Colors.black,
-                              size: 24,
-                            )
-                            : Text(
-                              index.toString().padLeft(2, '0'),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                  ),
-                ),
-                const SizedBox(width: 16),
 
-                // 2. Textos
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
+                  // Indicador de índice o "DONE"
+                  if (isCompleted)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: kAccentCyan.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: kAccentCyan.withOpacity(0.3)),
+                      ),
+                      child: const Text(
+                        "MASTERED",
                         style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color:
-                              isLocked
-                                  ? Colors.white.withOpacity(0.4)
-                                  : Colors.white,
+                          color: kAccentCyan,
+                          fontSize: 9,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isLocked ? "Complete previous level" : subtitle,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color:
-                              isLocked
-                                  ? Colors.white.withOpacity(0.2)
-                                  : AppTheme.textGrey,
-                        ),
+                    )
+                  else
+                    Text(
+                      index.toString().padLeft(2, '0'),
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.15),
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
                       ),
-                    ],
-                  ),
-                ),
-
-                // 3. Icono de acción
-                if (!isLocked && !isCompleted)
-                  Icon(
-                    Icons.arrow_forward_rounded,
-                    color: Colors.white.withOpacity(0.2),
-                    size: 20,
-                  ),
-              ],
-            ),
-
-            // 4. BARRA DE PROGRESO (Ahora se muestra si showProgressBar es true)
-            if (showProgressBar) ...[
-              const SizedBox(height: 20),
-              Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        isCompleted
-                            ? "Completed!"
-                            : "${(progress * 100).toInt()}% Mastered",
-                        style: TextStyle(
-                          color:
-                              isCompleted
-                                  ? AppTheme.primaryGreen
-                                  : Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        "$mastered/$total Phrases",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.5),
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Stack(
-                    children: [
-                      Container(
-                        height: 8,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                      ),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return AnimatedContainer(
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.easeOutExpo,
-                            height: 8,
-                            width:
-                                constraints.maxWidth *
-                                progress, // Ancho dinámico
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [
-                                  AppTheme.primaryGreen,
-                                  Color(0xFF69F0AE),
-                                ],
-                              ),
-                              borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: AppTheme.primaryGreen.withOpacity(0.4),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ],
-                  ),
+                    ),
                 ],
               ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 
-  void _showLockedAlert(BuildContext context) {
-    ScaffoldMessenger.of(context).clearSnackBars();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: const BoxDecoration(
-                color: Colors.white24,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.lock_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-            const SizedBox(width: 12),
-            const Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    "Level Locked",
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  Text(
-                    "Master all phrases (P1 & P2) in the previous level.💖​",
-                    style: TextStyle(fontSize: 12),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: const Color.fromARGB(255, 19, 150, 197),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        margin: const EdgeInsets.fromLTRB(20, 0, 20, 110),
-        duration: const Duration(milliseconds: 2500),
-      ),
-    );
-  }
-}
+              const Spacer(),
 
-// Player Flotante (Sin cambios, ya estaba perfecto)
-class _MiniPlayer extends StatelessWidget {
-  const _MiniPlayer();
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E).withOpacity(0.9),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AppTheme.primaryGreen.withOpacity(0.3),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.4),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryGreen.withOpacity(0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.music_note_rounded,
-                  color: AppTheme.primaryGreen,
-                  size: 20,
+              // --- TÍTULO PRINCIPAL ---
+              Text(
+                title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color:
+                      isLocked ? Colors.white.withOpacity(0.4) : Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.3,
+                  height: 1.1,
                 ),
               ),
-              const SizedBox(width: 14),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
+
+              const SizedBox(height: 8),
+
+              // --- BARRA DE PROGRESO Y SUBTÍTULO ---
+              if (isLocked)
+                Text(
+                  "Locked Level",
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.3),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                )
+              else ...[
+                // Barra de progreso moderna
+                Stack(
+                  children: [
+                    // Fondo de la barra
+                    Container(
+                      height: 6,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
+                    // Progreso animado
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        return AnimatedContainer(
+                          duration: const Duration(milliseconds: 800),
+                          curve: Curves.easeOutQuint,
+                          height: 6,
+                          width: constraints.maxWidth * progress,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [stateColor.withOpacity(0.7), stateColor],
+                            ),
+                            borderRadius: BorderRadius.circular(3),
+                            boxShadow: [
+                              // Pequeño resplandor en la barra misma
+                              BoxShadow(
+                                color: stateColor.withOpacity(0.5),
+                                blurRadius: 6,
+                                offset: const Offset(0, 0),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // Texto de progreso
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      "Ready to practice?",
+                      "$mastered / $total phrases",
                       style: TextStyle(
-                        color: AppTheme.primaryGreen,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5,
+                        color: Colors.white.withOpacity(0.5),
+                        fontSize: 11,
                       ),
                     ),
-                    SizedBox(height: 2),
                     Text(
-                      "Select a pattern to start",
+                      "${(progress * 100).toInt()}%",
                       style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        color: isCompleted ? kAccentCyan : Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
-              ),
-              Icon(
-                Icons.arrow_forward_rounded,
-                color: Colors.white.withOpacity(0.5),
-                size: 18,
-              ),
+              ],
             ],
           ),
         ),
@@ -553,3 +532,61 @@ class _MiniPlayer extends StatelessWidget {
     );
   }
 }
+
+// Player Flotante
+//class _MiniPlayer extends StatelessWidget {
+//  const _MiniPlayer();
+//  @override
+//  Widget build(BuildContext context) {
+//    return ClipRRect(
+//      borderRadius: BorderRadius.circular(20),
+//      child: BackdropFilter(
+//        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+//        child: Container(
+//          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+//          decoration: BoxDecoration(
+//            color: const Color(0xFF1E1E1E).withOpacity(0.95),
+//            borderRadius: BorderRadius.circular(20),
+//            border: Border.all(color: Colors.white.withOpacity(0.1)),
+//          ),
+//          child: Row(
+//            children: [
+//              Container(
+//                padding: const EdgeInsets.all(8),
+//                decoration: const BoxDecoration(
+//                  color: Color(0xFF00E5FF),
+//                  shape: BoxShape.circle,
+//                ),
+//                child: const Icon(
+//                  Icons.play_arrow_rounded,
+//                  color: Colors.black,
+//                  size: 20,
+//                ),
+//              ),
+//              const SizedBox(width: 14),
+//              const Expanded(
+//                child: Column(
+//                  crossAxisAlignment: CrossAxisAlignment.start,
+//                  children: [
+//                    Text(
+//                      "Quick Practice",
+//                      style: TextStyle(
+//                        color: Colors.white,
+//                        fontWeight: FontWeight.bold,
+//                        fontSize: 14,
+//                      ),
+//                    ),
+//                    Text(
+//                      "Shuffle all unlocked patterns",
+//                      style: TextStyle(color: Colors.white54, fontSize: 11),
+//                    ),
+//                  ],
+//                ),
+//              ),
+//            ],
+//          ),
+//        ),
+//      ),
+//    );
+//  }
+//}
