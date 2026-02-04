@@ -296,12 +296,15 @@ class _DashboardCard extends StatelessWidget {
             SnackBar(
               content: Row(
                 children: const [
-                  Icon(Icons.lock_outline, color: Colors.white),
+                  Icon(
+                    Icons.lock_outline,
+                    color: Color.fromARGB(255, 58, 181, 197),
+                  ),
                   SizedBox(width: 10),
                   Text("Complete previous levels to unlock! 🚀"),
                 ],
               ),
-              backgroundColor: const Color(0xFF2A2F3A),
+              backgroundColor: Color.fromARGB(255, 71, 243, 183),
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
