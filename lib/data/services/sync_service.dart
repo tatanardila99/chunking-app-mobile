@@ -64,6 +64,7 @@ class SyncService {
         'text_en': ph['text_en'],
         'text_es': ph['text_es'],
         'audio_url': ph['audio_url'],
+        'image_url': ph['image_url'],
       }, conflictAlgorithm: ConflictAlgorithm.replace);
 
       // Inicializar progreso vacío solo si es una frase nueva
