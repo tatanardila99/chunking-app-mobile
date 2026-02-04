@@ -77,5 +77,8 @@ class SyncService {
     }
 
     await batch.commit(noResult: true);
+
+    // Forzar el recálculo de los contadores de progreso después de la sincronización
+    await DatabaseHelper.instance.recalculateAllPatternCounts();
   }
 }

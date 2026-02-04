@@ -371,9 +371,47 @@ class DatabaseHelper {
     print("✅ Contadores de patrones recalculados correctamente.");
   }
 
-  // (Este método se mantiene por si quieres un mix aleatorio, pero el de SRS es mejor)
   Future<List<Map<String, dynamic>>> getSmartMixPhrases(int limit) async {
-    return getDuePhrasesForSRS(limit); // Ahora redirigimos al SRS
+    final db = await instance.database;
+
+    // 1. Determinar los patrones (chunks) desbloqueados
+    final allPatterns = await db.query('patterns', orderBy: 'sort_order ASC');
+    final List<int> unlockedPatternIds = [];
+
+    for (final pattern in allPatterns) {
+      unlockedPatternIds.add(pattern['id'] as int);
+      final int total = (pattern['total_phrases'] as int?) ?? 0;
+      final int mastered = (pattern['mastered_count'] as int?) ?? 0;
+
+      // Si el patrón actual no está 100% masterizado, detenemos la búsqueda.
+      // Esto incluye el patrón actual en el que se está trabajando.
+      if (total == 0 || mastered < total) {
+        break;
+      }
+    }
+
+    if (unlockedPatternIds.isEmpty) {
+      return []; // No hay patrones para mostrar
+    }
+
+    // 2. Obtener frases aleatorias de esos patrones desbloqueados
+    final String idList = unlockedPatternIds.join(',');
+    final result = await db.rawQuery(
+      '''
+      SELECT ph.id, ph.text_en, ph.text_es, ph.image_url, 
+             pat.title as pattern_title, 
+             up.p1, up.p2
+      FROM phrases ph
+      JOIN user_progress up ON ph.id = up.phrase_id
+      JOIN patterns pat ON ph.pattern_id = pat.id
+      WHERE ph.pattern_id IN ($idList)
+      ORDER BY RANDOM()
+      LIMIT ?
+    ''',
+      [limit],
+    );
+
+    return result.map((e) => Map<String, dynamic>.from(e)).toList();
   }
 
   Future<List<double>> getWeeklyActivity() async {
