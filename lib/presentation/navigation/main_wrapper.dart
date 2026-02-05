@@ -42,12 +42,14 @@ class _MainWrapperState extends State<MainWrapper> {
       decoration: BoxDecoration(
         color: const Color(
           0xFF1E1E1E,
-        ).withOpacity(0.85), // Fondo semitransparente
+        ).withValues(alpha: 0.85), // Fondo semitransparente
         borderRadius: BorderRadius.circular(35), // Bordes muy redondos
-        border: Border.all(color: Colors.white.withOpacity(0.1)), // Borde sutil
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.1),
+        ), // Borde sutil
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.4),
+            color: Colors.black.withValues(alpha: 0.4),
             blurRadius: 20,
             offset: const Offset(0, 10),
             spreadRadius: 2,
@@ -135,8 +137,8 @@ class _NavBarItem extends StatelessWidget {
               decoration: BoxDecoration(
                 color:
                     isSelected
-                        ? AppTheme.primaryGreen.withOpacity(
-                          0.2,
+                        ? AppTheme.primaryGreen.withValues(
+                          alpha: 0.2,
                         ) // Fondo verde suave al seleccionar
                         : Colors.transparent,
                 shape: BoxShape.circle,

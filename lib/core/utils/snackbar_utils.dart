@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
 
 class SnackbarUtils {
   static void show(
@@ -36,8 +35,8 @@ class SnackbarUtils {
             borderRadius: BorderRadius.circular(20),
             // BORDE: Brillante y definido
             border: Border.all(
-              color: color.withOpacity(
-                0.8,
+              color: color.withValues(
+                alpha: 0.8,
               ), // Más opacidad para que el borde se vea bien
               width: 1.5,
             ),
@@ -45,14 +44,14 @@ class SnackbarUtils {
             boxShadow: [
               // 1. Resplandor exterior (Glow) del color del estado
               BoxShadow(
-                color: color.withOpacity(0.25),
+                color: color.withValues(alpha: 0.25),
                 blurRadius: 25,
                 spreadRadius: -5,
                 offset: const Offset(0, 8),
               ),
               // 2. Sombra negra dura para separar del fondo
               BoxShadow(
-                color: Colors.black.withOpacity(0.6),
+                color: Colors.black.withValues(alpha: 0.6),
                 blurRadius: 15,
                 offset: const Offset(0, 10),
               ),
@@ -64,9 +63,12 @@ class SnackbarUtils {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: color.withOpacity(0.15),
+                  color: color.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
-                  border: Border.all(color: color.withOpacity(0.3), width: 1),
+                  border: Border.all(
+                    color: color.withValues(alpha: 0.3),
+                    width: 1,
+                  ),
                 ),
                 child: Icon(icon, color: color, size: 26),
               ),

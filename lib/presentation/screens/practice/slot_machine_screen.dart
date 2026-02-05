@@ -1,4 +1,3 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
@@ -123,7 +122,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                   center: Alignment.topCenter,
                   radius: 1.2,
                   colors: [
-                    AppTheme.primaryGreen.withOpacity(0.08),
+                    AppTheme.primaryGreen.withValues(alpha: 0.08),
                     Colors.transparent,
                   ],
                 ),
@@ -196,7 +195,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               borderRadius: BorderRadius.circular(10),
               boxShadow: [
                 BoxShadow(
-                  color: AppTheme.primaryGreen.withOpacity(0.5),
+                  color: AppTheme.primaryGreen.withValues(alpha: 0.5),
                   blurRadius: 10,
                 ),
               ],
@@ -222,7 +221,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.03),
+            color: Colors.white.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(15),
             border: Border.all(color: Colors.white10),
           ),
@@ -253,16 +252,16 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             color:
                 _isAnswered
                     ? (_isCorrect
-                        ? AppTheme.primaryGreen.withOpacity(0.1)
-                        : Colors.red.withOpacity(0.1))
-                    : Colors.white.withOpacity(0.02),
+                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                        : Colors.red.withValues(alpha: 0.1))
+                    : Colors.white.withValues(alpha: 0.02),
             boxShadow: [
               if (_isAnswered)
                 BoxShadow(
                   color:
                       _isCorrect
-                          ? AppTheme.primaryGreen.withOpacity(0.2)
-                          : Colors.red.withOpacity(0.2),
+                          ? AppTheme.primaryGreen.withValues(alpha: 0.2)
+                          : Colors.red.withValues(alpha: 0.2),
                   blurRadius: 60,
                 ),
             ],
@@ -281,8 +280,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                   _isAnswered
                       ? (_isCorrect
                           ? AppTheme.primaryGreen
-                          : Colors.red.withOpacity(0.5))
-                      : Colors.white.withOpacity(0.05),
+                          : Colors.red.withValues(alpha: 0.5))
+                      : Colors.white.withValues(alpha: 0.05),
               width: 2,
             ),
           ),
@@ -326,7 +325,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.03),
+        color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: _isAnswered ? Colors.transparent : Colors.white10,
@@ -361,14 +360,14 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
       decoration: BoxDecoration(
         color:
             _isCorrect
-                ? AppTheme.primaryGreen.withOpacity(0.1)
-                : Colors.redAccent.withOpacity(0.1),
+                ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                : Colors.redAccent.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color:
               _isCorrect
-                  ? AppTheme.primaryGreen.withOpacity(0.3)
-                  : Colors.redAccent.withOpacity(0.3),
+                  ? AppTheme.primaryGreen.withValues(alpha: 0.3)
+                  : Colors.redAccent.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -444,7 +443,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                         255,
                         255,
                         255,
-                      ).withOpacity(0.5)
+                      ).withValues(alpha: 0.5)
                       : Colors.black,
             ),
             onPressed: _isAnswered ? _nextPhrase : _checkAnswer,

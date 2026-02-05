@@ -127,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             border: Border.all(color: AppTheme.primaryGreen, width: 2),
             boxShadow: [
               BoxShadow(
-                color: AppTheme.primaryGreen.withOpacity(0.2),
+                color: AppTheme.primaryGreen.withValues(alpha: 0.2),
                 blurRadius: 20,
                 spreadRadius: 5,
               ),
@@ -164,7 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -260,7 +260,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: iconColor.withOpacity(0.1),
+                color: iconColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, color: iconColor, size: 20),
@@ -281,7 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
+                      color: Colors.white.withValues(alpha: 0.4),
                       fontSize: 12,
                     ),
                   ),

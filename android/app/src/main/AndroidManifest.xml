@@ -2,7 +2,7 @@
     package="com.example.chunking_english"> <uses-permission android:name="android.permission.INTERNET"/>
 
     <application
-        android:label="chunking_english"
+        android:label="Slotch"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true"> <activity

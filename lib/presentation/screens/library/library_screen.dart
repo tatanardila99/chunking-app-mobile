@@ -171,7 +171,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                     image: const DecorationImage(
                       // Placeholder para avatar si tienes uno
@@ -192,7 +192,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     Text(
                       "WELCOME BACK",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.1),
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.0,
@@ -213,7 +213,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.05),
+                color: Colors.white.withValues(alpha: 0.5),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -281,10 +281,12 @@ class _DashboardCard extends StatelessWidget {
     // Color principal de esta tarjeta según su estado
     final Color stateColor =
         isLocked
-            ? Colors.white.withOpacity(0.2) // Apagado
+            ? Colors.white.withValues(alpha: 0.2) // Apagado
             : isCompleted
             ? kAccentCyan // Brillante si terminó
-            : kAccentCyan.withOpacity(0.8); // Un poco menos si está en progreso
+            : kAccentCyan.withValues(
+              alpha: 0.8,
+            ); // Un poco menos si está en progreso
 
     return GestureDetector(
       onTap: () async {
@@ -339,8 +341,8 @@ class _DashboardCard extends StatelessWidget {
           border: Border.all(
             color:
                 isLocked
-                    ? Colors.white.withOpacity(0.05)
-                    : stateColor.withOpacity(isCompleted ? 0.5 : 0.3),
+                    ? Colors.white.withValues(alpha: 0.05)
+                    : stateColor.withValues(alpha: isCompleted ? 0.5 : 0.3),
             width: isLocked ? 1 : 1.5,
           ),
 
@@ -348,8 +350,8 @@ class _DashboardCard extends StatelessWidget {
           boxShadow: [
             if (!isLocked)
               BoxShadow(
-                color: stateColor.withOpacity(
-                  isCompleted ? 0.2 : 0.12,
+                color: stateColor.withValues(
+                  alpha: isCompleted ? 0.2 : 0.12,
                 ), // Color del neón
                 blurRadius: 25, // Muy difuminado
                 spreadRadius: -5, // Para que no se expanda mucho, solo un halo
@@ -357,7 +359,7 @@ class _DashboardCard extends StatelessWidget {
               ),
             // Sombra de profundidad estándar
             BoxShadow(
-              color: Colors.black.withOpacity(0.4),
+              color: Colors.black.withValues(alpha: 0.4),
               blurRadius: 15,
               offset: const Offset(0, 10),
             ),
@@ -381,14 +383,14 @@ class _DashboardCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color:
                           isLocked
-                              ? Colors.white.withOpacity(0.03)
-                              : stateColor.withOpacity(0.1),
+                              ? Colors.white.withValues(alpha: 0.03)
+                              : stateColor.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
                         color:
                             isLocked
                                 ? Colors.transparent
-                                : stateColor.withOpacity(0.2),
+                                : stateColor.withValues(alpha: 0.2),
                       ),
                     ),
                     child: Icon(
@@ -410,9 +412,11 @@ class _DashboardCard extends StatelessWidget {
                         vertical: 5,
                       ),
                       decoration: BoxDecoration(
-                        color: kAccentCyan.withOpacity(0.15),
+                        color: kAccentCyan.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: kAccentCyan.withOpacity(0.3)),
+                        border: Border.all(
+                          color: kAccentCyan.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: const Text(
                         "MASTERED",
@@ -428,7 +432,7 @@ class _DashboardCard extends StatelessWidget {
                     Text(
                       index.toString().padLeft(2, '0'),
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.15),
+                        color: Colors.white.withValues(alpha: 0.15),
                         fontSize: 24,
                         fontWeight: FontWeight.w900,
                       ),
@@ -445,7 +449,9 @@ class _DashboardCard extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color:
-                      isLocked ? Colors.white.withOpacity(0.4) : Colors.white,
+                      isLocked
+                          ? Colors.white.withValues(alpha: 0.4)
+                          : Colors.white,
                   fontSize: 17,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.3,
@@ -460,7 +466,7 @@ class _DashboardCard extends StatelessWidget {
                 Text(
                   "Locked Level",
                   style: TextStyle(
-                    color: Colors.white.withOpacity(0.3),
+                    color: Colors.white.withValues(alpha: 0.3),
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),
@@ -474,7 +480,7 @@ class _DashboardCard extends StatelessWidget {
                       height: 6,
                       width: double.infinity,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.05),
+                        color: Colors.white.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -488,13 +494,16 @@ class _DashboardCard extends StatelessWidget {
                           width: constraints.maxWidth * progress,
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [stateColor.withOpacity(0.7), stateColor],
+                              colors: [
+                                stateColor.withValues(alpha: 0.7),
+                                stateColor,
+                              ],
                             ),
                             borderRadius: BorderRadius.circular(3),
                             boxShadow: [
                               // Pequeño resplandor en la barra misma
                               BoxShadow(
-                                color: stateColor.withOpacity(0.5),
+                                color: stateColor.withValues(alpha: 0.5),
                                 blurRadius: 6,
                                 offset: const Offset(0, 0),
                               ),
@@ -513,7 +522,7 @@ class _DashboardCard extends StatelessWidget {
                     Text(
                       "$mastered / $total phrases",
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.5),
+                        color: Colors.white.withValues(alpha: 0.5),
                         fontSize: 11,
                       ),
                     ),
@@ -548,9 +557,9 @@ class _DashboardCard extends StatelessWidget {
 //        child: Container(
 //          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
 //          decoration: BoxDecoration(
-//            color: const Color(0xFF1E1E1E).withOpacity(0.95),
+//            color: const Color(0xFF1E1E1E).withValues(0.95),
 //            borderRadius: BorderRadius.circular(20),
-//            border: Border.all(color: Colors.white.withOpacity(0.1)),
+//            border: Border.all(color: Colors.white.withValues(0.1)),
 //          ),
 //          child: Row(
 //            children: [

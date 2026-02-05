@@ -152,7 +152,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.cyan.withOpacity(0.3),
+            color: Colors.cyan.withValues(alpha: 0.3),
             blurRadius: 15,
             offset: const Offset(0, 8),
           ),
@@ -170,7 +170,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.2),
+                    color: Colors.black.withValues(alpha: 0.2),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -239,7 +239,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.05),
+              color: Colors.white.withValues(alpha: 0.05),
               shape: BoxShape.circle,
             ),
             child: const Icon(Icons.bolt_rounded, color: Colors.yellow),
@@ -286,13 +286,13 @@ class _MixedPhraseCard extends StatelessWidget {
       decoration: BoxDecoration(
         color:
             isMastered
-                ? AppTheme.primaryGreen.withOpacity(0.05)
+                ? AppTheme.primaryGreen.withValues(alpha: 0.05)
                 : AppTheme.cardDark,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color:
               isMastered
-                  ? AppTheme.primaryGreen.withOpacity(0.3)
+                  ? AppTheme.primaryGreen.withValues(alpha: 0.3)
                   : Colors.transparent,
         ),
       ),
@@ -380,7 +380,7 @@ class _TapToRevealState extends State<_TapToReveal> {
       return Text(
         widget.hiddenText,
         style: TextStyle(
-          color: AppTheme.primaryGreen.withOpacity(0.8),
+          color: AppTheme.primaryGreen.withValues(alpha: 0.8),
           fontSize: 14,
           fontStyle: FontStyle.italic,
         ),
@@ -393,7 +393,7 @@ class _TapToRevealState extends State<_TapToReveal> {
         firstChild: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -402,13 +402,13 @@ class _TapToRevealState extends State<_TapToReveal> {
               Icon(
                 Icons.touch_app_rounded,
                 size: 14,
-                color: Colors.white.withOpacity(0.5),
+                color: Colors.white.withValues(alpha: 0.5),
               ),
               const SizedBox(width: 8),
               Text(
                 "Tap to reveal",
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
+                  color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 12,
                 ),
               ),
@@ -417,7 +417,7 @@ class _TapToRevealState extends State<_TapToReveal> {
         ),
         secondChild: Text(
           widget.hiddenText,
-          style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
         ),
         crossFadeState:
             _isRevealed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -451,7 +451,7 @@ class _CircularCheckButton extends StatelessWidget {
             color:
                 isActive
                     ? AppTheme.primaryGreen
-                    : Colors.white.withOpacity(0.3),
+                    : Colors.white.withValues(alpha: 0.3),
             width: 1.5,
           ),
         ),
@@ -459,7 +459,7 @@ class _CircularCheckButton extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.black : Colors.white.withOpacity(0.5),
+              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),

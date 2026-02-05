@@ -116,10 +116,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       height: 120,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: const Color(0xFF00E676).withOpacity(0.15),
+                        color: const Color(0xFF00E676).withValues(alpha: 0.15),
                         boxShadow: [
                           BoxShadow(
-                            color: const Color(0xFF00E676).withOpacity(0.3),
+                            color: const Color(0xFF00E676).withValues(alpha: 0.3),
                             blurRadius: 50,
                             spreadRadius: 10,
                           ),
@@ -142,12 +142,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           end: Alignment.bottomRight,
                         ),
                         border: Border.all(
-                          color: Colors.white.withOpacity(0.1),
+                          color: Colors.white.withValues(alpha: 0.1),
                           width: 1,
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.6),
+                            color: Colors.black.withValues(alpha: 0.6),
                             blurRadius: 20,
                             offset: const Offset(5, 10),
                           ),
@@ -247,7 +247,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         borderRadius: BorderRadius.circular(12),
                       ),
                       elevation: 5,
-                      shadowColor: AppTheme.primaryGreen.withOpacity(0.5),
+                      shadowColor: AppTheme.primaryGreen.withValues(alpha: 0.5),
                     ),
                     child:
                         _isLoading
@@ -307,7 +307,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: TextField(
         controller: controller,

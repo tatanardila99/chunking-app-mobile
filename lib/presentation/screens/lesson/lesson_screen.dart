@@ -149,7 +149,7 @@ class _GrammarCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF2A2A2A),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -175,7 +175,7 @@ class _GrammarCard extends StatelessWidget {
           Text(
             rule,
             style: TextStyle(
-              color: Colors.white.withOpacity(0.8),
+              color: Colors.white.withValues(alpha: 0.8),
               fontSize: 13,
               height: 1.4,
             ),
@@ -209,13 +209,13 @@ class _PhrasePracticeCard extends StatelessWidget {
       decoration: BoxDecoration(
         color:
             isMastered
-                ? AppTheme.primaryGreen.withOpacity(0.05)
+                ? AppTheme.primaryGreen.withValues(alpha: 0.05)
                 : AppTheme.cardDark,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color:
               isMastered
-                  ? AppTheme.primaryGreen.withOpacity(0.3)
+                  ? AppTheme.primaryGreen.withValues(alpha: 0.3)
                   : Colors.transparent,
         ),
       ),
@@ -301,7 +301,7 @@ class _TapToRevealState extends State<_TapToReveal> {
       return Text(
         widget.hiddenText,
         style: TextStyle(
-          color: AppTheme.primaryGreen.withOpacity(0.8),
+          color: AppTheme.primaryGreen.withValues(alpha: 0.8),
           fontSize: 14,
           fontStyle: FontStyle.italic,
         ),
@@ -328,7 +328,7 @@ class _TapToRevealState extends State<_TapToReveal> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.05),
+        color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -337,13 +337,13 @@ class _TapToRevealState extends State<_TapToReveal> {
           Icon(
             Icons.touch_app_rounded,
             size: 14,
-            color: Colors.white.withOpacity(0.5),
+            color: Colors.white.withValues(alpha: 0.5),
           ),
           const SizedBox(width: 8),
           Text(
             "Tap to reveal",
             style: TextStyle(
-              color: Colors.white.withOpacity(0.5),
+              color: Colors.white.withValues(alpha: 0.5),
               fontSize: 12,
               fontWeight: FontWeight.w500,
             ),
@@ -358,7 +358,7 @@ class _TapToRevealState extends State<_TapToReveal> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Text(
         widget.hiddenText,
-        style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 14),
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
       ),
     );
   }
@@ -388,16 +388,14 @@ class _CircularCheckButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(
             color:
-                isActive
-                    ? AppTheme.primaryGreen
-                    : Colors.white.withOpacity(0.3),
+                isActive ? AppTheme.primaryGreen : Colors.white.withValues(alpha: 0.3),
             width: 1.5,
           ),
           boxShadow:
               isActive
                   ? [
                     BoxShadow(
-                      color: AppTheme.primaryGreen.withOpacity(0.4),
+                      color: AppTheme.primaryGreen.withValues(alpha: 0.4),
                       blurRadius: 8,
                       spreadRadius: 1,
                     ),
@@ -408,7 +406,7 @@ class _CircularCheckButton extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.black : Colors.white.withOpacity(0.5),
+              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
