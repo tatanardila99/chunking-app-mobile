@@ -1,7 +1,7 @@
-import 'package:chunking_english/presentation/screens/auth/login_screen.dart';
-import 'package:chunking_english/presentation/screens/auth/register_screen.dart';
-import 'package:chunking_english/presentation/screens/practice/practice_screen.dart';
-import 'package:chunking_english/presentation/screens/profile/profile_screen.dart';
+import 'package:Slocth/presentation/screens/auth/login_screen.dart';
+import 'package:Slocth/presentation/screens/auth/register_screen.dart';
+import 'package:Slocth/presentation/screens/practice/practice_screen.dart';
+import 'package:Slocth/presentation/screens/profile/profile_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -67,7 +67,7 @@ final _router = GoRouter(
           routes: [
             GoRoute(
               path: '/profile',
-              builder: (context, state) => const ProfileScreen(), // <--- AQUÍ
+              builder: (context, state) => const ProfileScreen(),
             ),
           ],
         ),
