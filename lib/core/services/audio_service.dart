@@ -1,10 +1,8 @@
-
-import 'package:flutter/foundation.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart';
+import 'package:flutter/foundation.dart';
 
 class AudioService {
-  // Singleton Pattern
   static final AudioService instance = AudioService._init();
 
   final FlutterTts _tts = FlutterTts();
@@ -16,32 +14,32 @@ class AudioService {
     _initTts();
   }
 
-  // --- CONFIGURACIÓN TTS (VOZ DE LA APP) ---
+  // --- TTS (HABLAR) ---
   Future<void> _initTts() async {
     try {
       await _tts.setLanguage("en-US");
-      await _tts.setSpeechRate(0.5); // 0.5 es una velocidad pedagógica buena
+      await _tts.setSpeechRate(0.5); // Velocidad pedagógica
       await _tts.setVolume(1.0);
       await _tts.setPitch(1.0);
 
-      // Configuración específica para iOS para que el audio no se corte en silencio
+      // Configuración iOS para evitar cortes
       await _tts.setIosAudioCategory(IosTextToSpeechAudioCategory.playback, [
         IosTextToSpeechAudioCategoryOptions.defaultToSpeaker,
         IosTextToSpeechAudioCategoryOptions.allowBluetooth,
         IosTextToSpeechAudioCategoryOptions.allowBluetoothA2DP,
       ]);
     } catch (e) {
-      debugPrint("Error inicializando TTS: $e");
+      debugPrint("Error TTS: $e");
     }
   }
 
   Future<void> speak(String text) async {
     if (text.isEmpty) return;
     try {
-      await _tts.stop(); // Detener si algo estaba sonando
+      await _tts.stop();
       await _tts.speak(text);
     } catch (e) {
-      debugPrint("Error reproduciendo TTS: $e");
+      debugPrint("Error hablando: $e");
     }
   }
 
@@ -49,40 +47,40 @@ class AudioService {
     await _tts.stop();
   }
 
-  // --- CONFIGURACIÓN STT (RECONOCIMIENTO DE VOZ) ---
+  // --- STT (ESCUCHAR) ---
   Future<bool> initStt() async {
     if (!_isSttInitialized) {
       try {
         _isSttInitialized = await _stt.initialize(
           onStatus: (status) => debugPrint('STT Status: $status'),
-          onError:
-              (errorNotification) =>
-                  debugPrint('STT Error: $errorNotification'),
+          onError: (error) => debugPrint('STT Error: $error'),
         );
       } catch (e) {
-        debugPrint("Error inicializando STT: $e");
+        debugPrint("Error Init STT: $e");
       }
     }
     return _isSttInitialized;
   }
 
-  Future<void> startListening({required Function(String) onResult}) async {
+  // AHORA DEVUELVE TEXTO Y SI ES EL FINAL
+  Future<void> startListening({
+    required Function(String text, bool isFinal) onResult,
+  }) async {
     bool available = await initStt();
     if (available) {
       await _stt.listen(
         onResult: (result) {
-          if (result.finalResult || result.recognizedWords.isNotEmpty) {
-            onResult(result.recognizedWords);
-          }
+          // Enviamos el texto reconocido y la bandera de si terminó
+          onResult(result.recognizedWords, result.finalResult);
         },
-        localeId: "en_US", // Forzamos inglés para practicar
-        listenFor: const Duration(seconds: 10),
-        pauseFor: const Duration(seconds: 3),
-        cancelOnError: true,
+        localeId: "en_US",
+        listenFor: const Duration(seconds: 15),
+        pauseFor: const Duration(seconds: 2), // Si calla 2 seg, se asume final
         partialResults: true,
+        cancelOnError: true,
       );
     } else {
-      debugPrint("El reconocimiento de voz no está disponible.");
+      debugPrint("STT no disponible");
     }
   }
 

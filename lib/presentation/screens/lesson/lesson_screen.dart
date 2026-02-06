@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
+import '../../../core/services/audio_service.dart';
 
 class LessonScreen extends StatefulWidget {
   final String patternId;
@@ -46,9 +47,7 @@ class _LessonScreenState extends State<LessonScreen> {
 
     await DatabaseHelper.instance.updateProgress(phraseId, field, newValue);
 
-    // Si el usuario MARCÓ (newValue == true), contamos como actividad
     if (newValue) {
-      // Sumamos 1 frase a la estadística del día
       await DatabaseHelper.instance.addPhraseCount(1);
     }
 
@@ -80,6 +79,7 @@ class _LessonScreenState extends State<LessonScreen> {
                 color: AppTheme.primaryGreen,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
+                letterSpacing: 1,
               ),
             ),
             Text(
@@ -222,20 +222,49 @@ class _PhrasePracticeCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Texto (Inglés y Tap to Reveal Español)
+          // Texto (Inglés y Tap to Reveal Español) + Speaker
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Frase en Inglés (Chunk)
-                Text(
-                  phrase['text_en'],
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                  ),
+                // FILA: Texto Inglés + Botón de Audio
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        phrase['text_en'],
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          height: 1.2,
+                        ),
+                      ),
+                    ),
+                    // BOTÓN DE AUDIO NUEVO 🔊
+                    GestureDetector(
+                      onTap: () {
+                        // Llamada al servicio de audio
+                        AudioService.instance.speak(phrase['text_en']);
+                      },
+                      child: Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryGreen.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.volume_up_rounded,
+                          color: AppTheme.primaryGreen,
+                          size: 20,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
+
                 const SizedBox(height: 8),
 
                 // Tap to Reveal (Español)
@@ -249,7 +278,7 @@ class _PhrasePracticeCard extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          // Botones P1 y P2 (Alineados arriba)
+          // Botones P1 y P2
           Column(
             children: [
               _CircularCheckButton(
@@ -271,7 +300,7 @@ class _PhrasePracticeCard extends StatelessWidget {
   }
 }
 
-// --- WIDGET TAP TO REVEAL (Aquí está la magia) ---
+// --- WIDGET TAP TO REVEAL ---
 class _TapToReveal extends StatefulWidget {
   final String hiddenText;
   final bool isMastered;
@@ -288,7 +317,6 @@ class _TapToRevealState extends State<_TapToReveal> {
   @override
   void didUpdateWidget(covariant _TapToReveal oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Si cambia la frase (reciclaje de lista), ocultar de nuevo
     if (widget.hiddenText != oldWidget.hiddenText) {
       _isRevealed = false;
     }
@@ -296,7 +324,6 @@ class _TapToRevealState extends State<_TapToReveal> {
 
   @override
   Widget build(BuildContext context) {
-    // Si ya dominaste la frase (Mastered), mostramos el texto siempre
     if (widget.isMastered) {
       return Text(
         widget.hiddenText,
@@ -311,7 +338,7 @@ class _TapToRevealState extends State<_TapToReveal> {
     return GestureDetector(
       onTap: () {
         setState(() {
-          _isRevealed = !_isRevealed; // Toggle al tocar
+          _isRevealed = !_isRevealed;
         });
       },
       child: AnimatedCrossFade(
@@ -358,7 +385,10 @@ class _TapToRevealState extends State<_TapToReveal> {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Text(
         widget.hiddenText,
-        style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.7),
+          fontSize: 14,
+        ),
       ),
     );
   }
@@ -388,7 +418,9 @@ class _CircularCheckButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(
             color:
-                isActive ? AppTheme.primaryGreen : Colors.white.withValues(alpha: 0.3),
+                isActive
+                    ? AppTheme.primaryGreen
+                    : Colors.white.withValues(alpha: 0.3),
             width: 1.5,
           ),
           boxShadow:
@@ -406,7 +438,8 @@ class _CircularCheckButton extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
+              color:
+                  isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),

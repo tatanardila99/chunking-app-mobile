@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
-import '../../../core/services/audio_service.dart'; // Importa tu nuevo servicio
+import '../../../core/services/audio_service.dart';
 
 class SlotMachineScreen extends StatefulWidget {
   final List<Map<String, dynamic>> phrases;
@@ -18,47 +18,47 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   final _controller = TextEditingController();
   bool _isAnswered = false;
   bool _isCorrect = false;
-  bool _isListening = false; // Estado del micrófono
+  bool _isListening = false;
 
   @override
   void dispose() {
     _controller.dispose();
-    AudioService.instance.stopTts(); // Detener audio al salir
+    AudioService.instance.stopTts();
     super.dispose();
   }
 
-  // --- LÓGICA DE AUDIO (STT) ---
+  // --- LÓGICA DE AUDIO INTELIGENTE ---
   void _toggleListening() async {
     if (_isListening) {
       await AudioService.instance.stopListening();
       setState(() => _isListening = false);
     } else {
       setState(() => _isListening = true);
-      // Limpiamos el campo para nueva entrada de voz
       _controller.clear();
 
       await AudioService.instance.startListening(
-        onResult: (text) {
+        onResult: (text, isFinal) {
+          if (!mounted) return;
+
           setState(() {
             _controller.text = text;
-            // Si el texto es lo suficientemente largo, asumimos que terminó
-            // OJO: SpeechToText a veces envía parciales, actualizamos el UI en tiempo real
           });
+
+          // AUTO-CHECK: Si el usuario dejó de hablar, validamos solos.
+          if (isFinal) {
+            Future.delayed(const Duration(milliseconds: 600), () {
+              if (mounted && !_isAnswered && _controller.text.isNotEmpty) {
+                _checkAnswer();
+                setState(() => _isListening = false);
+              }
+            });
+          }
         },
       );
-
-      // Escuchamos cambios de estado del servicio para apagar el icono cuando termine solo
-      // (Esta es una implementación simple, en prod podrías usar un Listener más complejo)
-      Future.delayed(const Duration(seconds: 5), () {
-        if (mounted && !AudioService.instance.isListening) {
-          setState(() => _isListening = false);
-        }
-      });
     }
   }
 
-  // --- LÓGICA DE APRENDIZAJE ---
-
+  // --- LÓGICA DEL JUEGO ---
   String _getVariablePart(String fullPhrase, String pattern) {
     if (fullPhrase.toLowerCase().contains(pattern.toLowerCase())) {
       return fullPhrase
@@ -72,7 +72,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   void _checkAnswer() {
     if (_controller.text.trim().isEmpty) return;
 
-    // Detenemos el micro si estaba activo
+    // Asegurar que el micro se apague si validamos manual
     if (_isListening) {
       AudioService.instance.stopListening();
       setState(() => _isListening = false);
@@ -82,26 +82,29 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     final String pattern = current['pattern_title'].toString();
     final String fullPhrase = current['text_en'].toString();
 
-    // Normalizamos para comparar mejor (quitamos puntos finales, etc)
-    final expectedPart = _getVariablePart(
-      fullPhrase,
-      pattern,
-    ).replaceAll('.', '');
-    final userAnswer = _controller.text.trim().toLowerCase().replaceAll(
-      '.',
+    // Limpieza de strings para evitar errores tontos (puntos, espacios extra)
+    final cleanPattern = pattern.toLowerCase();
+    final cleanFull = fullPhrase.toLowerCase().replaceAll(
+      RegExp(r'[^\w\s]'),
+      '',
+    ); // Quita signos
+    final cleanUser = _controller.text.trim().toLowerCase().replaceAll(
+      RegExp(r'[^\w\s]'),
       '',
     );
-    final fullPhraseClean = fullPhrase.toLowerCase().replaceAll('.', '');
+
+    // Parte esperada
+    String expectedPart = _getVariablePart(cleanFull, cleanPattern);
+    if (expectedPart.isEmpty) expectedPart = cleanFull; // Fallback
 
     setState(() {
-      _isCorrect =
-          (userAnswer == expectedPart) || (userAnswer == fullPhraseClean);
+      // Correcto si coincide con la parte variable O con la frase completa
+      _isCorrect = (cleanUser == expectedPart) || (cleanUser == cleanFull);
       _isAnswered = true;
     });
 
-    // --- REFUERZO AUDITIVO (TTS) ---
+    // FEEDBACK AUDITIVO
     if (_isCorrect) {
-      // Si acierta, la app lee la frase completa para reforzar
       AudioService.instance.speak(current['text_en']);
     }
 
@@ -149,6 +152,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     }
   }
 
+  // --- UI ---
   @override
   Widget build(BuildContext context) {
     final current = widget.phrases[_currentIndex];
@@ -157,7 +161,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       extendBodyBehindAppBar: true,
-      resizeToAvoidBottomInset: true, // Importante para el teclado
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -194,12 +198,9 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                   const SizedBox(height: 30),
                   _buildVisualSlot(current['image_url']),
                   const SizedBox(height: 40),
-
-                  // INPUT CON MICRÓFONO INTEGRADO
                   _buildModernInput(),
-
                   if (_isAnswered) _buildFeedbackArea(current),
-                  const SizedBox(height: 100), // Espacio extra para scroll
+                  const SizedBox(height: 100),
                 ],
               ),
             ),
@@ -210,11 +211,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     );
   }
 
-  // --- WIDGETS ---
-
   Widget _buildStepIndicator(double progress) {
     return Column(
-      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           "PHRASE ${_currentIndex + 1} OF ${widget.phrases.length}",
@@ -222,32 +220,20 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             color: Colors.white38,
             fontSize: 10,
             fontWeight: FontWeight.bold,
-            letterSpacing: 1.2,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 5),
         Container(
-          width: 120,
+          width: 100,
           height: 4,
           decoration: BoxDecoration(
             color: Colors.white10,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 500),
-            width: 120 * progress,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [AppTheme.primaryGreen, Color(0xFF00E676)],
-              ),
-              borderRadius: BorderRadius.circular(10),
-              boxShadow: [
-                BoxShadow(
-                  color: AppTheme.primaryGreen.withValues(alpha: 0.5),
-                  blurRadius: 10,
-                ),
-              ],
-            ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: progress,
+            child: Container(color: AppTheme.primaryGreen),
           ),
         ),
       ],
@@ -255,129 +241,91 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   }
 
   Widget _buildPatternHeader(String title) {
-    return Column(
-      children: [
-        const Text(
-          "STRUCTURE",
-          style: TextStyle(
-            color: Colors.white24,
-            fontSize: 10,
-            letterSpacing: 2,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: Colors.white10),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            "PATTERN",
+            style: TextStyle(
+              color: Colors.white38,
+              fontSize: 10,
+              letterSpacing: 2,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.03),
-            borderRadius: BorderRadius.circular(15),
-            border: Border.all(color: Colors.white10),
-          ),
-          child: Text(
+          const SizedBox(height: 4),
+          Text(
             title.toUpperCase(),
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
-              letterSpacing: 1.5,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildVisualSlot(String? imageUrl) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 240,
-          height: 240,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color:
-                _isAnswered
-                    ? (_isCorrect
-                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                        : Colors.red.withValues(alpha: 0.1))
-                    : (_isListening
-                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                        : Colors.white.withValues(
-                          alpha: 0.02,
-                        )), // Glow al escuchar
-            boxShadow: [
-              if (_isAnswered || _isListening)
-                BoxShadow(
-                  color:
-                      _isCorrect || _isListening
-                          ? AppTheme.primaryGreen.withValues(alpha: 0.2)
-                          : Colors.red.withValues(alpha: 0.2),
-                  blurRadius: 60,
-                ),
-            ],
-          ),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: 260,
+      height: 260,
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(40),
+        border: Border.all(
+          color:
+              _isListening
+                  ? AppTheme.primaryGreen
+                  : (_isAnswered
+                      ? (_isCorrect ? AppTheme.primaryGreen : Colors.red)
+                      : Colors.white10),
+          width: _isListening ? 4 : 2,
         ),
-        Container(
-          width: 280,
-          height: 280,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E1E1E),
-            borderRadius: BorderRadius.circular(50),
-            border: Border.all(
-              color:
-                  _isAnswered
-                      ? (_isCorrect
-                          ? AppTheme.primaryGreen
-                          : Colors.red.withValues(alpha: 0.5))
-                      : (_isListening
-                          ? AppTheme.primaryGreen
-                          : Colors.white.withValues(alpha: 0.05)),
-              width: 2,
-            ),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(40),
-            child:
-                imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder:
-                          (context, error, stack) => const Icon(
-                            Icons.broken_image,
-                            color: Colors.white12,
-                            size: 50,
-                          ),
-                    )
-                    : const Center(
-                      child: Icon(
-                        Icons.psychology_outlined,
-                        size: 60,
-                        color: Colors.white12,
+        boxShadow:
+            _isListening
+                ? [
+                  BoxShadow(
+                    color: AppTheme.primaryGreen.withValues(alpha: 0.3),
+                    blurRadius: 20,
+                  ),
+                ]
+                : [],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child:
+            imageUrl != null && imageUrl.isNotEmpty
+                ? Image.network(
+                  imageUrl,
+                  fit: BoxFit.cover,
+                  errorBuilder:
+                      (_, __, ___) => const Icon(
+                        Icons.broken_image,
+                        size: 50,
+                        color: Colors.white24,
                       ),
-                    ),
-          ),
-        ),
-      ],
+                )
+                : const Icon(Icons.psychology, size: 80, color: Colors.white12),
+      ),
     );
   }
 
-  // --- INPUT HÍBRIDO (TECLADO + VOZ) ---
   Widget _buildModernInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
         borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color:
-              _isListening
-                  ? AppTheme
-                      .primaryGreen // Borde verde si está escuchando
-                  : (_isAnswered ? Colors.transparent : Colors.white10),
+          color: _isListening ? AppTheme.primaryGreen : Colors.white10,
         ),
       ),
       child: Row(
@@ -385,43 +333,35 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
           Expanded(
             child: TextField(
               controller: _controller,
-              autofocus: false, // Quitamos autofocus para no tapar el micro
               enabled: !_isAnswered,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 22,
+                fontSize: 20,
                 fontWeight: FontWeight.bold,
               ),
               decoration: InputDecoration(
-                hintText: _isListening ? "Listening..." : "Type or speak...",
+                hintText: _isListening ? "Listening..." : "Type or Speak...",
                 hintStyle: TextStyle(
-                  color: _isListening ? AppTheme.primaryGreen : Colors.white12,
-                  fontSize: 18,
+                  color: _isListening ? AppTheme.primaryGreen : Colors.white24,
                 ),
                 border: InputBorder.none,
               ),
-              onSubmitted: (_) => _isAnswered ? null : _checkAnswer(),
+              onSubmitted: (_) => _checkAnswer(),
             ),
           ),
-
-          // BOTÓN DE MICRÓFONO
           GestureDetector(
             onTap: _isAnswered ? null : _toggleListening,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: const EdgeInsets.all(12),
+            child: Container(
+              padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color:
-                    _isListening
-                        ? AppTheme.primaryGreen
-                        : Colors.white.withValues(alpha: 0.1),
+                    _isListening ? AppTheme.primaryGreen : Colors.transparent,
                 shape: BoxShape.circle,
               ),
               child: Icon(
                 _isListening ? Icons.mic : Icons.mic_none,
-                color: _isListening ? Colors.black : Colors.white,
-                size: 24,
+                color: _isListening ? Colors.black : Colors.white54,
               ),
             ),
           ),
@@ -430,73 +370,146 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     );
   }
 
+
   Widget _buildFeedbackArea(Map<String, dynamic> current) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(top: 30),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color:
-            _isCorrect
-                ? AppTheme.primaryGreen.withValues(alpha: 0.1)
-                : Colors.redAccent.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color:
-              _isCorrect
-                  ? AppTheme.primaryGreen.withValues(alpha: 0.3)
-                  : Colors.redAccent.withValues(alpha: 0.3),
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 500),
+      opacity: _isAnswered ? 1.0 : 0.0,
+      child: Container(
+        margin: const EdgeInsets.only(top: 20), // Espacio superior correcto
+        padding: const EdgeInsets.all(24),
+        width: double.infinity,
+        decoration: BoxDecoration(
+          // Gradiente sutil según el resultado
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors:
+                _isCorrect
+                    ? [
+                      AppTheme.primaryGreen.withValues(alpha: 0.15),
+                      AppTheme.primaryGreen.withValues(alpha: 0.05),
+                    ]
+                    : [
+                      Colors.redAccent.withValues(alpha: 0.15),
+                      Colors.redAccent.withValues(alpha: 0.05),
+                    ],
+          ),
+          borderRadius: BorderRadius.circular(24),
+          // Borde "Glassmorphic"
+          border: Border.all(
+            color:
+                _isCorrect
+                    ? AppTheme.primaryGreen.withValues(alpha: 0.3)
+                    : Colors.redAccent.withValues(alpha: 0.3),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color:
+                  _isCorrect
+                      ? AppTheme.primaryGreen.withValues(alpha: 0.05)
+                      : Colors.redAccent.withValues(alpha: 0.05),
+              blurRadius: 20,
+              spreadRadius: 0,
+            ),
+          ],
         ),
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                _isCorrect ? Icons.check_circle : Icons.cancel,
-                color: _isCorrect ? AppTheme.primaryGreen : Colors.redAccent,
-              ),
-              const SizedBox(width: 10),
-              Text(
-                _isCorrect ? "EXCELLENT!" : "KEEP TRYING!",
-                style: TextStyle(
+        child: Column(
+          children: [
+            // 1. ICONO Y TÍTULO
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _isCorrect
+                      ? Icons.check_circle_rounded
+                      : Icons.cancel_rounded,
                   color: _isCorrect ? AppTheme.primaryGreen : Colors.redAccent,
+                  size: 28,
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  _isCorrect ? "EXCELLENT!" : "ALMOST THERE!",
+                  style: TextStyle(
+                    color:
+                        _isCorrect ? AppTheme.primaryGreen : Colors.redAccent,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    letterSpacing: 1.5,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 16),
+            const Divider(color: Colors.white10, height: 1),
+            const SizedBox(height: 16),
+
+            // 2. CONTENIDO DE LA CORRECCIÓN
+            if (!_isCorrect) ...[
+              const Text(
+                "THE CORRECT PHRASE IS:",
+                style: TextStyle(
+                  color: Colors.white38,
+                  fontSize: 10,
                   fontWeight: FontWeight.bold,
-                  letterSpacing: 1.5,
+                  letterSpacing: 1.2,
                 ),
               ),
+              const SizedBox(height: 8),
             ],
-          ),
 
-          // BOTÓN PARA REPETIR AUDIO (SI FALLÓ O QUIERE ESCUCHAR DE NUEVO)
-          IconButton(
-            icon: const Icon(Icons.volume_up, color: Colors.white70),
-            onPressed: () => AudioService.instance.speak(current['text_en']),
-          ),
-
-          if (!_isCorrect) ...[
-            const SizedBox(height: 10),
-            const Text(
-              "THE CORRECT PHRASE IS:",
-              style: TextStyle(
-                color: Colors.white38,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 5),
+            // 3. LA FRASE (GRANDE Y CLARA)
             Text(
               current['text_en'],
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 18,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
+                height: 1.3,
+              ),
+            ),
+
+            const SizedBox(height: 20),
+
+            // 4. BOTÓN DE AUDIO (SECUNDARIO PERO ELEGANTE)
+            GestureDetector(
+              onTap: () => AudioService.instance.speak(current['text_en']),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  borderRadius: BorderRadius.circular(30),
+                  border: Border.all(color: Colors.white10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.volume_up_rounded,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      "LISTEN AGAIN",
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
@@ -504,38 +517,25 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   Widget _buildBottomAction() {
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: SizedBox(
-          width: double.infinity,
-          height: 65,
-          child: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor:
-                  _isAnswered
-                      ? (_isCorrect ? AppTheme.primaryGreen : Colors.white)
-                      : AppTheme.primaryGreen,
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25),
-              ),
-              elevation: 10,
-              shadowColor:
-                  (_isAnswered && _isCorrect)
-                      ? AppTheme.primaryGreen.withValues(alpha: 0.5)
-                      : Colors.black,
+        padding: const EdgeInsets.all(24),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor:
+                _isAnswered
+                    ? (_isCorrect ? AppTheme.primaryGreen : Colors.white)
+                    : AppTheme.primaryGreen,
+            fixedSize: const Size(double.infinity, 60),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
-            onPressed: _isAnswered ? _nextPhrase : _checkAnswer,
-            child: Text(
-              _isAnswered
-                  ? (_currentIndex == widget.phrases.length - 1
-                      ? "FINISH SESSION"
-                      : "NEXT PHRASE")
-                  : "CHECK ANSWER",
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                letterSpacing: 1,
-              ),
+          ),
+          onPressed: _isAnswered ? _nextPhrase : _checkAnswer,
+          child: Text(
+            _isAnswered ? "NEXT" : "CHECK",
+            style: const TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
         ),
