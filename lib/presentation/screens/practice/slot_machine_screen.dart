@@ -39,12 +39,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
       await AudioService.instance.startListening(
         onResult: (text, isFinal) {
           if (!mounted) return;
+          setState(() => _controller.text = text);
 
-          setState(() {
-            _controller.text = text;
-          });
-
-          // AUTO-CHECK: Si el usuario dejó de hablar, validamos solos.
           if (isFinal) {
             Future.delayed(const Duration(milliseconds: 600), () {
               if (mounted && !_isAnswered && _controller.text.isNotEmpty) {
@@ -53,6 +49,22 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               }
             });
           }
+        },
+        // --- AQUÍ MANEJAMOS EL FALLO DE INTERNET ---
+        onError: (errorMsg) {
+          if (!mounted) return;
+          setState(() => _isListening = false); // Apagamos el micro
+
+          // Mostramos mensaje de error bonito
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                "Your internet connection is slow. Try downloading offline language pack.",
+              ),
+              backgroundColor: const Color.fromARGB(255, 16, 148, 148),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
         },
       );
     }
@@ -369,7 +381,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
       ),
     );
   }
-
 
   Widget _buildFeedbackArea(Map<String, dynamic> current) {
     return AnimatedOpacity(

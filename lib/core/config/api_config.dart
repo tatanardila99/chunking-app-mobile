@@ -4,7 +4,7 @@ class ApiConfig {
   // --- TUS SERVIDORES ---
 
   // 1. URL LOCAL (Android Emulator usa 10.0.2.2, iOS usa localhost)
-  static const String _devUrl = 'http://192.168.1.5:3000/api';
+  static const String _devUrl = 'http://192.168.1.16:3000/api';
 
   // 2. URL PRODUCCIÓN (Tu servidor en Render/AWS/etc)
   static const String _prodUrl =

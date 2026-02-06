@@ -62,25 +62,31 @@ class AudioService {
     return _isSttInitialized;
   }
 
-  // AHORA DEVUELVE TEXTO Y SI ES EL FINAL
+
   Future<void> startListening({
     required Function(String text, bool isFinal) onResult,
+    required Function(String errorMsg) onError, // <--- NUEVO
   }) async {
     bool available = await initStt();
     if (available) {
       await _stt.listen(
         onResult: (result) {
-          // Enviamos el texto reconocido y la bandera de si terminó
           onResult(result.recognizedWords, result.finalResult);
         },
-        localeId: "en_US",
-        listenFor: const Duration(seconds: 15),
-        pauseFor: const Duration(seconds: 2), // Si calla 2 seg, se asume final
+        listenFor: const Duration(seconds: 10),
+        pauseFor: const Duration(seconds: 2),
         partialResults: true,
         cancelOnError: true,
+        listenMode: ListenMode.dictation,
       );
+      // Agregamos un listener de errores interno del plugin
+      _stt.errorListener = (error) {
+        debugPrint("STT Error: ${error.errorMsg}");
+        onError(error.errorMsg); // Avisamos a la pantalla
+      };
     } else {
       debugPrint("STT no disponible");
+      onError("Voice recognition not available");
     }
   }
 

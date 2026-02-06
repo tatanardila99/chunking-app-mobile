@@ -168,17 +168,11 @@ class _LibraryScreenState extends State<LibraryScreen> {
               children: [
                 // Avatar simulado
                 Container(
-                  width: 40,
-                  height: 40,
+                  width: 55,
+                  height: 55,
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
-                    image: const DecorationImage(
-                      // Placeholder para avatar si tienes uno
-                      image: AssetImage('assets/images/logo.png'),
-                      opacity: 0.8,
-                      fit: BoxFit.cover,
-                    ),
                   ),
                   child: const Icon(
                     Icons.person,
@@ -192,7 +186,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
                     Text(
                       "WELCOME BACK",
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: const Color.fromARGB(255, 8, 167, 98),
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.0,
