@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
+import '../../../core/services/audio_service.dart'; // Importa tu nuevo servicio
 
 class SlotMachineScreen extends StatefulWidget {
   final List<Map<String, dynamic>> phrases;
@@ -17,10 +18,47 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   final _controller = TextEditingController();
   bool _isAnswered = false;
   bool _isCorrect = false;
+  bool _isListening = false; // Estado del micrófono
 
-  // --- LÓGICA DE APRENDIZAJE (EL MOTOR) ---
+  @override
+  void dispose() {
+    _controller.dispose();
+    AudioService.instance.stopTts(); // Detener audio al salir
+    super.dispose();
+  }
 
-  // Extrae la parte que el usuario DEBE escribir (ej: de "I need to buy an apple" saca "an apple")
+  // --- LÓGICA DE AUDIO (STT) ---
+  void _toggleListening() async {
+    if (_isListening) {
+      await AudioService.instance.stopListening();
+      setState(() => _isListening = false);
+    } else {
+      setState(() => _isListening = true);
+      // Limpiamos el campo para nueva entrada de voz
+      _controller.clear();
+
+      await AudioService.instance.startListening(
+        onResult: (text) {
+          setState(() {
+            _controller.text = text;
+            // Si el texto es lo suficientemente largo, asumimos que terminó
+            // OJO: SpeechToText a veces envía parciales, actualizamos el UI en tiempo real
+          });
+        },
+      );
+
+      // Escuchamos cambios de estado del servicio para apagar el icono cuando termine solo
+      // (Esta es una implementación simple, en prod podrías usar un Listener más complejo)
+      Future.delayed(const Duration(seconds: 5), () {
+        if (mounted && !AudioService.instance.isListening) {
+          setState(() => _isListening = false);
+        }
+      });
+    }
+  }
+
+  // --- LÓGICA DE APRENDIZAJE ---
+
   String _getVariablePart(String fullPhrase, String pattern) {
     if (fullPhrase.toLowerCase().contains(pattern.toLowerCase())) {
       return fullPhrase
@@ -34,31 +72,46 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   void _checkAnswer() {
     if (_controller.text.trim().isEmpty) return;
 
+    // Detenemos el micro si estaba activo
+    if (_isListening) {
+      AudioService.instance.stopListening();
+      setState(() => _isListening = false);
+    }
+
     final current = widget.phrases[_currentIndex];
     final String pattern = current['pattern_title'].toString();
     final String fullPhrase = current['text_en'].toString();
 
-    final expectedPart = _getVariablePart(fullPhrase, pattern);
-    final userAnswer = _controller.text.trim().toLowerCase();
+    // Normalizamos para comparar mejor (quitamos puntos finales, etc)
+    final expectedPart = _getVariablePart(
+      fullPhrase,
+      pattern,
+    ).replaceAll('.', '');
+    final userAnswer = _controller.text.trim().toLowerCase().replaceAll(
+      '.',
+      '',
+    );
+    final fullPhraseClean = fullPhrase.toLowerCase().replaceAll('.', '');
 
     setState(() {
-      // Es correcto si escribe la parte que falta o la frase completa
       _isCorrect =
-          (userAnswer == expectedPart) ||
-          (userAnswer == fullPhrase.toLowerCase());
+          (userAnswer == expectedPart) || (userAnswer == fullPhraseClean);
       _isAnswered = true;
     });
+
+    // --- REFUERZO AUDITIVO (TTS) ---
+    if (_isCorrect) {
+      // Si acierta, la app lee la frase completa para reforzar
+      AudioService.instance.speak(current['text_en']);
+    }
 
     _processSRSUpdate(current);
   }
 
   Future<void> _processSRSUpdate(Map<String, dynamic> current) async {
     final int currentLevel = current['srs_level'] ?? 0;
-
-    // Regla de Fallo: Si falla vuelve a 0. Si acierta, sube nivel (max 3).
     int newLevel = _isCorrect ? (currentLevel + 1).clamp(0, 3) : 0;
 
-    // Intervalos SRS: N0=Hoy, N1=1 día, N2=4 días, N3=14 días
     int daysToAdd = 0;
     if (_isCorrect) {
       if (newLevel == 1) daysToAdd = 1;
@@ -88,6 +141,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
         _currentIndex++;
         _controller.clear();
         _isAnswered = false;
+        _isCorrect = false;
+        _isListening = false;
       });
     } else {
       context.pop();
@@ -102,6 +157,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       extendBodyBehindAppBar: true,
+      resizeToAvoidBottomInset: true, // Importante para el teclado
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -114,7 +170,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
       ),
       body: Stack(
         children: [
-          // Fondo con gradiente radial neón
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -129,29 +184,22 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               ),
             ),
           ),
-
           SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
                 children: [
                   const SizedBox(height: 10),
-
-                  // 1. EL CHUNK FIJO (MOLDE)
                   _buildPatternHeader(current['pattern_title']),
-
                   const SizedBox(height: 30),
-
-                  // 2. EL SLOT MACHINE (VISUAL ANCHOR)
                   _buildVisualSlot(current['image_url']),
-
                   const SizedBox(height: 40),
 
-                  // 3. INPUT MODERNO
+                  // INPUT CON MICRÓFONO INTEGRADO
                   _buildModernInput(),
 
-                  // 4. FEEDBACK "BONITO" (Mensaje de éxito/error solicitado)
                   if (_isAnswered) _buildFeedbackArea(current),
+                  const SizedBox(height: 100), // Espacio extra para scroll
                 ],
               ),
             ),
@@ -162,7 +210,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     );
   }
 
-  // --- COMPONENTES DE UI ---
+  // --- WIDGETS ---
 
   Widget _buildStepIndicator(double progress) {
     return Column(
@@ -219,7 +267,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
         ),
         const SizedBox(height: 8),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 60, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.03),
             borderRadius: BorderRadius.circular(15),
@@ -229,7 +277,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             title.toUpperCase(),
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 14,
+              fontSize: 20,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.5,
             ),
@@ -245,8 +293,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
-          width: 220,
-          height: 220,
+          width: 240,
+          height: 240,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color:
@@ -254,12 +302,16 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                     ? (_isCorrect
                         ? AppTheme.primaryGreen.withValues(alpha: 0.1)
                         : Colors.red.withValues(alpha: 0.1))
-                    : Colors.white.withValues(alpha: 0.02),
+                    : (_isListening
+                        ? AppTheme.primaryGreen.withValues(alpha: 0.1)
+                        : Colors.white.withValues(
+                          alpha: 0.02,
+                        )), // Glow al escuchar
             boxShadow: [
-              if (_isAnswered)
+              if (_isAnswered || _isListening)
                 BoxShadow(
                   color:
-                      _isCorrect
+                      _isCorrect || _isListening
                           ? AppTheme.primaryGreen.withValues(alpha: 0.2)
                           : Colors.red.withValues(alpha: 0.2),
                   blurRadius: 60,
@@ -267,8 +319,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             ],
           ),
         ),
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
+        Container(
           width: 280,
           height: 280,
           padding: const EdgeInsets.all(12),
@@ -281,7 +332,9 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                       ? (_isCorrect
                           ? AppTheme.primaryGreen
                           : Colors.red.withValues(alpha: 0.5))
-                      : Colors.white.withValues(alpha: 0.05),
+                      : (_isListening
+                          ? AppTheme.primaryGreen
+                          : Colors.white.withValues(alpha: 0.05)),
               width: 2,
             ),
           ),
@@ -292,14 +345,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                     ? Image.network(
                       imageUrl,
                       fit: BoxFit.cover,
-                      loadingBuilder: (context, child, progress) {
-                        if (progress == null) return child;
-                        return const Center(
-                          child: CircularProgressIndicator(
-                            color: AppTheme.primaryGreen,
-                          ),
-                        );
-                      },
                       errorBuilder:
                           (context, error, stack) => const Icon(
                             Icons.broken_image,
@@ -307,10 +352,9 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                             size: 50,
                           ),
                     )
-                    : Container(
-                      color: Colors.black26,
-                      child: const Icon(
-                        Icons.image_search_rounded,
+                    : const Center(
+                      child: Icon(
+                        Icons.psychology_outlined,
                         size: 60,
                         color: Colors.white12,
                       ),
@@ -321,42 +365,76 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     );
   }
 
+  // --- INPUT HÍBRIDO (TECLADO + VOZ) ---
   Widget _buildModernInput() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.03),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(30),
         border: Border.all(
-          color: _isAnswered ? Colors.transparent : Colors.white10,
+          color:
+              _isListening
+                  ? AppTheme
+                      .primaryGreen // Borde verde si está escuchando
+                  : (_isAnswered ? Colors.transparent : Colors.white10),
         ),
       ),
-      child: TextField(
-        controller: _controller,
-        autofocus: true,
-        enabled: !_isAnswered,
-        textAlign: TextAlign.center,
-        style: const TextStyle(
-          color: Colors.white,
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
-        ),
-        decoration: const InputDecoration(
-          hintText: "Complete the sentence...",
-          hintStyle: TextStyle(color: Colors.white12, fontSize: 20),
-          border: InputBorder.none,
-        ),
-        onSubmitted: (_) => _isAnswered ? null : _checkAnswer(),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              autofocus: false, // Quitamos autofocus para no tapar el micro
+              enabled: !_isAnswered,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+              ),
+              decoration: InputDecoration(
+                hintText: _isListening ? "Listening..." : "Type or speak...",
+                hintStyle: TextStyle(
+                  color: _isListening ? AppTheme.primaryGreen : Colors.white12,
+                  fontSize: 18,
+                ),
+                border: InputBorder.none,
+              ),
+              onSubmitted: (_) => _isAnswered ? null : _checkAnswer(),
+            ),
+          ),
+
+          // BOTÓN DE MICRÓFONO
+          GestureDetector(
+            onTap: _isAnswered ? null : _toggleListening,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color:
+                    _isListening
+                        ? AppTheme.primaryGreen
+                        : Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                _isListening ? Icons.mic : Icons.mic_none,
+                color: _isListening ? Colors.black : Colors.white,
+                size: 24,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  // --- AREA DE FEEDBACK (LA CAJA BONITA) ---
   Widget _buildFeedbackArea(Map<String, dynamic> current) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      margin: const EdgeInsets.only(top: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 30),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color:
             _isCorrect
@@ -379,7 +457,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                 _isCorrect ? Icons.check_circle : Icons.cancel,
                 color: _isCorrect ? AppTheme.primaryGreen : Colors.redAccent,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Text(
                 _isCorrect ? "EXCELLENT!" : "KEEP TRYING!",
                 style: TextStyle(
@@ -390,8 +468,15 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               ),
             ],
           ),
+
+          // BOTÓN PARA REPETIR AUDIO (SI FALLÓ O QUIERE ESCUCHAR DE NUEVO)
+          IconButton(
+            icon: const Icon(Icons.volume_up, color: Colors.white70),
+            onPressed: () => AudioService.instance.speak(current['text_en']),
+          ),
+
           if (!_isCorrect) ...[
-            const SizedBox(height: 5),
+            const SizedBox(height: 10),
             const Text(
               "THE CORRECT PHRASE IS:",
               style: TextStyle(
@@ -427,10 +512,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             style: ElevatedButton.styleFrom(
               backgroundColor:
                   _isAnswered
-                      ? (_isCorrect
-                          ? const Color.fromARGB(255, 255, 255, 255)
-                          : Colors.white)
-                      : const Color.fromARGB(255, 253, 254, 254),
+                      ? (_isCorrect ? AppTheme.primaryGreen : Colors.white)
+                      : AppTheme.primaryGreen,
               foregroundColor: Colors.black,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(25),
@@ -438,12 +521,7 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               elevation: 10,
               shadowColor:
                   (_isAnswered && _isCorrect)
-                      ? const Color.fromARGB(
-                        255,
-                        255,
-                        255,
-                        255,
-                      ).withValues(alpha: 0.5)
+                      ? AppTheme.primaryGreen.withValues(alpha: 0.5)
                       : Colors.black,
             ),
             onPressed: _isAnswered ? _nextPhrase : _checkAnswer,

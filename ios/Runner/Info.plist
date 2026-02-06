@@ -45,5 +45,9 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Slotch necesita el micrófono para escuchar tu pronunciación en los ejercicios.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Slotch usa reconocimiento de voz para validar tus respuestas.</string>
 </dict>
 </plist>
