@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'package:Slocth/core/config/api_config.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:slotch/core/config/api_config.dart';
 
 class AuthService {
   // Ya no necesitamos definir baseUrl aquí

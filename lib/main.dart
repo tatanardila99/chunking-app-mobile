@@ -1,10 +1,11 @@
-import 'package:Slocth/presentation/screens/auth/login_screen.dart';
-import 'package:Slocth/presentation/screens/auth/register_screen.dart';
-import 'package:Slocth/presentation/screens/practice/practice_screen.dart';
-import 'package:Slocth/presentation/screens/profile/profile_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:slotch/presentation/screens/auth/login_screen.dart';
+import 'package:slotch/presentation/screens/auth/register_screen.dart';
+import 'package:slotch/presentation/screens/practice/practice_screen.dart';
+import 'package:slotch/presentation/screens/profile/profile_screen.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/navigation/main_wrapper.dart';
 import 'presentation/screens/library/library_screen.dart';
