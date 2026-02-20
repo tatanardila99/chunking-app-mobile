@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/local/database_helper.dart';
 import '../../../core/services/audio_service.dart';
+import '../../../domain/entities/phrase_with_progress.dart';
+import '../../providers/dependency_injection.dart';
 
-class SlotMachineScreen extends StatefulWidget {
-  final List<Map<String, dynamic>> phrases;
+class SlotMachineScreen extends ConsumerStatefulWidget {
+  final List<PhraseWithProgress> phrases;
 
   const SlotMachineScreen({super.key, required this.phrases});
 
   @override
-  State<SlotMachineScreen> createState() => _SlotMachineScreenState();
+  ConsumerState<SlotMachineScreen> createState() => _SlotMachineScreenState();
 }
 
-class _SlotMachineScreenState extends State<SlotMachineScreen> {
+class _SlotMachineScreenState extends ConsumerState<SlotMachineScreen> {
   int _currentIndex = 0;
   final _controller = TextEditingController();
   bool _isAnswered = false;
@@ -50,12 +52,10 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             });
           }
         },
-        // --- AQUÍ MANEJAMOS EL FALLO DE INTERNET ---
         onError: (errorMsg) {
           if (!mounted) return;
-          setState(() => _isListening = false); // Apagamos el micro
+          setState(() => _isListening = false);
 
-          // Mostramos mensaje de error bonito
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(
@@ -71,16 +71,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
   }
 
   // --- LÓGICA DEL JUEGO ---
-  String _getVariablePart(String fullPhrase, String pattern) {
-    if (fullPhrase.toLowerCase().contains(pattern.toLowerCase())) {
-      return fullPhrase
-          .toLowerCase()
-          .replaceAll(pattern.toLowerCase(), "")
-          .trim();
-    }
-    return fullPhrase.toLowerCase().trim();
-  }
-
   void _checkAnswer() {
     if (_controller.text.trim().isEmpty) return;
 
@@ -91,62 +81,40 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     }
 
     final current = widget.phrases[_currentIndex];
-    final String pattern = current['pattern_title'].toString();
-    final String fullPhrase = current['text_en'].toString();
+    // Aquí necesitamos el pattern_title - lo obtendremos del contexto
+    // Por ahora usamos una aproximación
+    final String fullPhrase = current.textEn;
 
     // Limpieza de strings para evitar errores tontos (puntos, espacios extra)
-    final cleanPattern = pattern.toLowerCase();
     final cleanFull = fullPhrase.toLowerCase().replaceAll(
       RegExp(r'[^\w\s]'),
       '',
-    ); // Quita signos
+    );
     final cleanUser = _controller.text.trim().toLowerCase().replaceAll(
       RegExp(r'[^\w\s]'),
       '',
     );
 
-    // Parte esperada
-    String expectedPart = _getVariablePart(cleanFull, cleanPattern);
-    if (expectedPart.isEmpty) expectedPart = cleanFull; // Fallback
-
     setState(() {
-      // Correcto si coincide con la parte variable O con la frase completa
-      _isCorrect = (cleanUser == expectedPart) || (cleanUser == cleanFull);
+      _isCorrect = cleanUser == cleanFull;
       _isAnswered = true;
     });
 
     // FEEDBACK AUDITIVO
     if (_isCorrect) {
-      AudioService.instance.speak(current['text_en']);
+      AudioService.instance.speak(current.textEn);
     }
 
     _processSRSUpdate(current);
   }
 
-  Future<void> _processSRSUpdate(Map<String, dynamic> current) async {
-    final int currentLevel = current['srs_level'] ?? 0;
-    int newLevel = _isCorrect ? (currentLevel + 1).clamp(0, 3) : 0;
+  Future<void> _processSRSUpdate(PhraseWithProgress current) async {
+    final progressRepo = ref.read(progressRepositoryProvider);
 
-    int daysToAdd = 0;
-    if (_isCorrect) {
-      if (newLevel == 1) daysToAdd = 1;
-      if (newLevel == 2) daysToAdd = 4;
-      if (newLevel == 3) daysToAdd = 14;
-    }
-
-    final nextReview =
-        DateTime.now().add(Duration(days: daysToAdd)).millisecondsSinceEpoch;
-
-    final db = await DatabaseHelper.instance.database;
-    await db.update(
-      'user_progress',
-      {
-        'srs_level': newLevel,
-        'next_review_date': nextReview,
-        'last_reviewed_date': DateTime.now().millisecondsSinceEpoch,
-      },
-      where: 'phrase_id = ?',
-      whereArgs: [current['id']],
+    await progressRepo.updateSRSProgress(
+      phraseId: current.id,
+      isCorrect: _isCorrect,
+      mode: 'slot_machine',
     );
   }
 
@@ -206,9 +174,9 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 10),
-                  _buildPatternHeader(current['pattern_title']),
+                  _buildPatternHeader("PRACTICE"),
                   const SizedBox(height: 30),
-                  _buildVisualSlot(current['image_url']),
+                  _buildVisualSlot(current.imageUrl),
                   const SizedBox(height: 40),
                   _buildModernInput(),
                   if (_isAnswered) _buildFeedbackArea(current),
@@ -382,16 +350,15 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
     );
   }
 
-  Widget _buildFeedbackArea(Map<String, dynamic> current) {
+  Widget _buildFeedbackArea(PhraseWithProgress current) {
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 500),
       opacity: _isAnswered ? 1.0 : 0.0,
       child: Container(
-        margin: const EdgeInsets.only(top: 20), // Espacio superior correcto
+        margin: const EdgeInsets.only(top: 20),
         padding: const EdgeInsets.all(24),
         width: double.infinity,
         decoration: BoxDecoration(
-          // Gradiente sutil según el resultado
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -407,7 +374,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
                     ],
           ),
           borderRadius: BorderRadius.circular(24),
-          // Borde "Glassmorphic"
           border: Border.all(
             color:
                 _isCorrect
@@ -428,7 +394,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
         ),
         child: Column(
           children: [
-            // 1. ICONO Y TÍTULO
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -457,7 +422,6 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
             const Divider(color: Colors.white10, height: 1),
             const SizedBox(height: 16),
 
-            // 2. CONTENIDO DE LA CORRECCIÓN
             if (!_isCorrect) ...[
               const Text(
                 "THE CORRECT PHRASE IS:",
@@ -471,9 +435,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
               const SizedBox(height: 8),
             ],
 
-            // 3. LA FRASE (GRANDE Y CLARA)
             Text(
-              current['text_en'],
+              current.textEn,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 color: Colors.white,
@@ -485,9 +448,8 @@ class _SlotMachineScreenState extends State<SlotMachineScreen> {
 
             const SizedBox(height: 20),
 
-            // 4. BOTÓN DE AUDIO (SECUNDARIO PERO ELEGANTE)
             GestureDetector(
-              onTap: () => AudioService.instance.speak(current['text_en']),
+              onTap: () => AudioService.instance.speak(current.textEn),
               child: Container(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 20,

@@ -1,43 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/app_theme.dart';
-import '../../../data/local/database_helper.dart';
 import '../../../core/utils/snackbar_utils.dart';
-// Asegúrate de que esta sea la ruta correcta a tu nueva pantalla de juego
+import '../../../domain/entities/phrase_with_progress.dart';
+import '../../providers/phrase_provider.dart';
+import '../../providers/dependency_injection.dart';
 import 'slot_machine_screen.dart';
 
-class PracticeScreen extends StatefulWidget {
+class PracticeScreen extends ConsumerStatefulWidget {
   const PracticeScreen({super.key});
 
   @override
-  State<PracticeScreen> createState() => _PracticeScreenState();
+  ConsumerState<PracticeScreen> createState() => _PracticeScreenState();
 }
 
-class _PracticeScreenState extends State<PracticeScreen> {
-  List<Map<String, dynamic>> _randomPhrases = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadRandomMix();
-  }
-
-  // Carga el mix de frases (Legacy P1/P2)
-  Future<void> _loadRandomMix() async {
-    setState(() => _isLoading = true);
-    final phrases = await DatabaseHelper.instance.getSmartMixPhrases(20);
-    if (mounted) {
-      setState(() {
-        _randomPhrases = phrases;
-        _isLoading = false;
-      });
-    }
-  }
-
+class _PracticeScreenState extends ConsumerState<PracticeScreen> {
   // --- LÓGICA PARA INICIAR EL JUEGO (SLOT MACHINE) ---
   Future<void> _startSlotMachine() async {
-    // 1. Obtener frases que tocan hoy por SRS
-    final duePhrases = await DatabaseHelper.instance.getDuePhrasesForSRS(10);
+    // Obtener frases que tocan hoy por SRS
+    final duePhrases = await ref
+        .read(phraseRepositoryProvider)
+        .getDuePhrases(limit: 10);
 
     if (duePhrases.isEmpty) {
       if (mounted) {
@@ -50,33 +33,39 @@ class _PracticeScreenState extends State<PracticeScreen> {
       return;
     }
 
-    // 2. Navegar a la pantalla de la Tragamonedas
+    // Navegar a la pantalla de la Tragamonedas
     if (mounted) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => SlotMachineScreen(phrases: duePhrases),
         ),
-      ).then((_) => _loadRandomMix()); // Recargar al volver por si hubo cambios
+      ).then((_) {
+        // Invalidar providers para refrescar datos
+        ref.invalidate(smartMixPhrasesProvider);
+      });
     }
   }
 
   // Marcar progreso individual (P1/P2)
-  Future<void> _toggleProgress(int index, String field) async {
-    final phrase = _randomPhrases[index];
-    final int phraseId = phrase['id'];
-    final bool currentValue = (phrase[field] == 1);
-    final bool newValue = !currentValue;
+  Future<void> _toggleProgress(PhraseWithProgress phrase, String field) async {
+    final progressRepo = ref.read(progressRepositoryProvider);
+    final currentValue = field == 'p1' ? phrase.p1 : phrase.p2;
 
-    await DatabaseHelper.instance.updateProgress(phraseId, field, newValue);
+    await progressRepo.updateLegacyProgress(
+      phraseId: phrase.id,
+      field: field,
+      value: !currentValue,
+    );
 
-    setState(() {
-      _randomPhrases[index][field] = newValue ? 1 : 0;
-    });
+    // Invalidar providers para refrescar
+    ref.invalidate(smartMixPhrasesProvider);
   }
 
   @override
   Widget build(BuildContext context) {
+    final phrasesAsync = ref.watch(smartMixPhrasesProvider(20));
+
     return Scaffold(
       backgroundColor: AppTheme.bgDark,
       body: SafeArea(
@@ -84,41 +73,51 @@ class _PracticeScreenState extends State<PracticeScreen> {
           children: [
             _buildHeader(),
             Expanded(
-              child:
-                  _isLoading
-                      ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppTheme.primaryGreen,
-                        ),
-                      )
-                      : _randomPhrases.isEmpty && _isLoading == false
-                      ? _buildEmptyState()
-                      : RefreshIndicator(
-                        onRefresh: _loadRandomMix,
-                        color: AppTheme.primaryGreen,
-                        backgroundColor: AppTheme.cardDark,
-                        child: ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                          // +1 para incluir la tarjeta de Slot Machine arriba
-                          itemCount: _randomPhrases.length + 1,
-                          itemBuilder: (context, index) {
-                            // ÍNDICE 0: La tarjeta especial del modo juego
-                            if (index == 0) {
-                              return _buildSlotMachineHeroCard();
-                            }
+              child: phrasesAsync.when(
+                data: (phrases) {
+                  if (phrases.isEmpty) {
+                    return _buildEmptyState();
+                  }
 
-                            // RESTO: Las tarjetas de la lista (ajustamos index - 1)
-                            final phraseIndex = index - 1;
-                            return _MixedPhraseCard(
-                              phrase: _randomPhrases[phraseIndex],
-                              onToggleP1:
-                                  () => _toggleProgress(phraseIndex, 'p1'),
-                              onToggleP2:
-                                  () => _toggleProgress(phraseIndex, 'p2'),
-                            );
-                          },
-                        ),
+                  return RefreshIndicator(
+                    onRefresh: () async {
+                      ref.invalidate(smartMixPhrasesProvider);
+                    },
+                    color: AppTheme.primaryGreen,
+                    backgroundColor: AppTheme.cardDark,
+                    child: ListView.builder(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
+                      itemCount: phrases.length + 1,
+                      itemBuilder: (context, index) {
+                        if (index == 0) {
+                          return _buildSlotMachineHeroCard();
+                        }
+
+                        final phraseIndex = index - 1;
+                        final phrase = phrases[phraseIndex];
+                        return _MixedPhraseCard(
+                          phrase: phrase,
+                          onToggleP1: () => _toggleProgress(phrase, 'p1'),
+                          onToggleP2: () => _toggleProgress(phrase, 'p2'),
+                        );
+                      },
+                    ),
+                  );
+                },
+                loading:
+                    () => const Center(
+                      child: CircularProgressIndicator(
+                        color: AppTheme.primaryGreen,
                       ),
+                    ),
+                error:
+                    (error, stack) => Center(
+                      child: Text(
+                        'Error: $error',
+                        style: const TextStyle(color: Colors.white54),
+                      ),
+                    ),
+              ),
             ),
           ],
         ),
@@ -127,7 +126,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 92.0),
         child: FloatingActionButton.extended(
-          onPressed: _loadRandomMix,
+          onPressed: () => ref.invalidate(smartMixPhrasesProvider),
           backgroundColor: const Color.fromARGB(255, 213, 24, 147),
           icon: const Icon(Icons.shuffle, color: Colors.white),
           label: const Text(
@@ -139,14 +138,13 @@ class _PracticeScreenState extends State<PracticeScreen> {
     );
   }
 
-  // --- WIDGET: TARJETA HERO PARA EL JUEGO ---
   Widget _buildSlotMachineHeroCard() {
     return Container(
       margin: const EdgeInsets.only(bottom: 24, top: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
-          colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)], // Gradiente Neón
+          colors: [Color(0xFF2E3192), Color(0xFF1BFFFF)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -263,7 +261,7 @@ class _PracticeScreenState extends State<PracticeScreen> {
 // --- WIDGETS DE SOPORTE (TARJETAS Y BOTONES) ---
 
 class _MixedPhraseCard extends StatelessWidget {
-  final Map<String, dynamic> phrase;
+  final PhraseWithProgress phrase;
   final VoidCallback onToggleP1;
   final VoidCallback onToggleP2;
 
@@ -275,10 +273,7 @@ class _MixedPhraseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool p1Active = (phrase['p1'] == 1);
-    final bool p2Active = (phrase['p2'] == 1);
-    final bool isMastered = p1Active && p2Active;
-    final String patternTitle = phrase['pattern_title'] ?? "Unknown Pattern";
+    final bool isMastered = phrase.isMastered;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -306,9 +301,9 @@ class _MixedPhraseCard extends StatelessWidget {
               color: const Color.fromARGB(96, 0, 0, 0),
               borderRadius: BorderRadius.circular(4),
             ),
-            child: Text(
-              patternTitle.toUpperCase(),
-              style: const TextStyle(
+            child: const Text(
+              "PRACTICE",
+              style: TextStyle(
                 color: Colors.white38,
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
@@ -323,7 +318,7 @@ class _MixedPhraseCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      phrase['text_en'],
+                      phrase.textEn,
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,
@@ -332,7 +327,7 @@ class _MixedPhraseCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
                     _TapToReveal(
-                      hiddenText: phrase['text_es'],
+                      hiddenText: phrase.textEs,
                       isMastered: isMastered,
                     ),
                   ],
@@ -343,13 +338,13 @@ class _MixedPhraseCard extends StatelessWidget {
                 children: [
                   _CircularCheckButton(
                     label: "P1",
-                    isActive: p1Active,
+                    isActive: phrase.p1,
                     onTap: onToggleP1,
                   ),
                   const SizedBox(height: 12),
                   _CircularCheckButton(
                     label: "P2",
-                    isActive: p2Active,
+                    isActive: phrase.p2,
                     onTap: onToggleP2,
                   ),
                 ],
@@ -417,7 +412,10 @@ class _TapToRevealState extends State<_TapToReveal> {
         ),
         secondChild: Text(
           widget.hiddenText,
-          style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 14),
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.7),
+            fontSize: 14,
+          ),
         ),
         crossFadeState:
             _isRevealed ? CrossFadeState.showSecond : CrossFadeState.showFirst,
@@ -459,7 +457,8 @@ class _CircularCheckButton extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              color: isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
+              color:
+                  isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),

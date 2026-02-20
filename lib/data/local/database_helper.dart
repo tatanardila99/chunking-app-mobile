@@ -209,7 +209,7 @@ class DatabaseHelper {
       );
 
       await db.rawUpdate(
-        'UPDATE daily_activity SET xp = xp + 4, phrases_count = phrases_count + 1 WHERE date = ?',
+        'UPDATE daily_activity SET xp = xp + 2, phrases_count = phrases_count + 1 WHERE date = ?',
         [today],
       );
     }
@@ -446,8 +446,6 @@ class DatabaseHelper {
     String currentLevel = "A1";
     for (int i = 0; i < patterns.length; i++) {
       final p = patterns[i];
-      final int total = (p['total_phrases'] as int?) ?? 0;
-      final int mastered = (p['mastered_count'] as int?) ?? 0;
       bool previousCompleted = true;
       if (i > 0) {
         final prevP = patterns[i - 1];
