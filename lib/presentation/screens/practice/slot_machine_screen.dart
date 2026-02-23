@@ -174,7 +174,9 @@ class _SlotMachineScreenState extends ConsumerState<SlotMachineScreen> {
               child: Column(
                 children: [
                   const SizedBox(height: 10),
-                  _buildPatternHeader("PRACTICE"),
+                  _buildPatternHeader(
+                    widget.phrases[_currentIndex].patternTitle ?? "PRACTICE",
+                  ),
                   const SizedBox(height: 30),
                   _buildVisualSlot(current.imageUrl),
                   const SizedBox(height: 40),

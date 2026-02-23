@@ -8,8 +8,13 @@ import 'user_progress.dart';
 class PhraseWithProgress {
   final Phrase phrase;
   final UserProgress progress;
+  final String? patternTitle; // Título del patrón (opcional, para UI)
 
-  const PhraseWithProgress({required this.phrase, required this.progress});
+  const PhraseWithProgress({
+    required this.phrase,
+    required this.progress,
+    this.patternTitle,
+  });
 
   /// Acceso rápido a propiedades de la frase
   int get id => phrase.id;
@@ -28,10 +33,15 @@ class PhraseWithProgress {
   DateTime? get nextReviewDate => progress.nextReviewDate;
 
   /// Copia con nuevos valores
-  PhraseWithProgress copyWith({Phrase? phrase, UserProgress? progress}) {
+  PhraseWithProgress copyWith({
+    Phrase? phrase,
+    UserProgress? progress,
+    String? patternTitle,
+  }) {
     return PhraseWithProgress(
       phrase: phrase ?? this.phrase,
       progress: progress ?? this.progress,
+      patternTitle: patternTitle ?? this.patternTitle,
     );
   }
 

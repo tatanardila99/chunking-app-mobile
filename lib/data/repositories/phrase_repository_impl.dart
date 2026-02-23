@@ -69,6 +69,11 @@ class PhraseRepositoryImpl implements PhraseRepository {
       failCount: map['fail_count'] as int? ?? 0,
     );
 
-    return PhraseWithProgress(phrase: phrase, progress: progress);
+    return PhraseWithProgress(
+      phrase: phrase,
+      progress: progress,
+      patternTitle:
+          map['pattern_title'] as String?, // Incluir pattern_title del Map
+    );
   }
 }

@@ -4,6 +4,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/snackbar_utils.dart';
 import '../../../domain/entities/phrase_with_progress.dart';
 import '../../providers/phrase_provider.dart';
+import '../../providers/pattern_provider.dart';
 import '../../providers/dependency_injection.dart';
 import 'slot_machine_screen.dart';
 
@@ -15,6 +16,9 @@ class PracticeScreen extends ConsumerStatefulWidget {
 }
 
 class _PracticeScreenState extends ConsumerState<PracticeScreen> {
+  // Estado local para tracking de cambios optimistas
+  final Map<int, Map<String, bool>> _localChanges = {};
+
   // --- LÓGICA PARA INICIAR EL JUEGO (SLOT MACHINE) ---
   Future<void> _startSlotMachine() async {
     // Obtener frases que tocan hoy por SRS
@@ -43,6 +47,8 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
       ).then((_) {
         // Invalidar providers para refrescar datos
         ref.invalidate(smartMixPhrasesProvider);
+        ref.invalidate(patternsProvider);
+        _localChanges.clear();
       });
     }
   }
@@ -50,16 +56,42 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
   // Marcar progreso individual (P1/P2)
   Future<void> _toggleProgress(PhraseWithProgress phrase, String field) async {
     final progressRepo = ref.read(progressRepositoryProvider);
-    final currentValue = field == 'p1' ? phrase.p1 : phrase.p2;
+    final currentValue = _getCurrentValue(phrase, field);
+    final newValue = !currentValue;
 
+    // Actualizar estado local optimista PRIMERO
+    setState(() {
+      _localChanges[phrase.id] = {
+        ...(_localChanges[phrase.id] ?? {}),
+        field: newValue,
+      };
+    });
+
+    // Actualizar en la base de datos en background
     await progressRepo.updateLegacyProgress(
       phraseId: phrase.id,
       field: field,
-      value: !currentValue,
+      value: newValue,
     );
 
-    // Invalidar providers para refrescar
-    ref.invalidate(smartMixPhrasesProvider);
+    // Invalidar patternsProvider para que LibraryScreen se actualice
+    ref.invalidate(patternsProvider);
+  }
+
+  // Obtener valor actual considerando cambios locales
+  bool _getCurrentValue(PhraseWithProgress phrase, String field) {
+    if (_localChanges.containsKey(phrase.id) &&
+        _localChanges[phrase.id]!.containsKey(field)) {
+      return _localChanges[phrase.id]![field]!;
+    }
+    return field == 'p1' ? phrase.p1 : phrase.p2;
+  }
+
+  // Verificar si está masterizado considerando cambios locales
+  bool _getIsMastered(PhraseWithProgress phrase) {
+    final p1 = _getCurrentValue(phrase, 'p1');
+    final p2 = _getCurrentValue(phrase, 'p2');
+    return p1 && p2;
   }
 
   @override
@@ -82,6 +114,8 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
                   return RefreshIndicator(
                     onRefresh: () async {
                       ref.invalidate(smartMixPhrasesProvider);
+                      ref.invalidate(patternsProvider);
+                      _localChanges.clear();
                     },
                     color: AppTheme.primaryGreen,
                     backgroundColor: AppTheme.cardDark,
@@ -97,6 +131,9 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
                         final phrase = phrases[phraseIndex];
                         return _MixedPhraseCard(
                           phrase: phrase,
+                          p1Value: _getCurrentValue(phrase, 'p1'),
+                          p2Value: _getCurrentValue(phrase, 'p2'),
+                          isMastered: _getIsMastered(phrase),
                           onToggleP1: () => _toggleProgress(phrase, 'p1'),
                           onToggleP2: () => _toggleProgress(phrase, 'p2'),
                         );
@@ -126,7 +163,10 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
       floatingActionButton: Padding(
         padding: const EdgeInsets.only(bottom: 92.0),
         child: FloatingActionButton.extended(
-          onPressed: () => ref.invalidate(smartMixPhrasesProvider),
+          onPressed: () {
+            ref.invalidate(smartMixPhrasesProvider);
+            _localChanges.clear();
+          },
           backgroundColor: const Color.fromARGB(255, 213, 24, 147),
           icon: const Icon(Icons.shuffle, color: Colors.white),
           label: const Text(
@@ -262,19 +302,23 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
 
 class _MixedPhraseCard extends StatelessWidget {
   final PhraseWithProgress phrase;
+  final bool p1Value;
+  final bool p2Value;
+  final bool isMastered;
   final VoidCallback onToggleP1;
   final VoidCallback onToggleP2;
 
   const _MixedPhraseCard({
     required this.phrase,
+    required this.p1Value,
+    required this.p2Value,
+    required this.isMastered,
     required this.onToggleP1,
     required this.onToggleP2,
   });
 
   @override
   Widget build(BuildContext context) {
-    final bool isMastered = phrase.isMastered;
-
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(16),
@@ -338,13 +382,13 @@ class _MixedPhraseCard extends StatelessWidget {
                 children: [
                   _CircularCheckButton(
                     label: "P1",
-                    isActive: phrase.p1,
+                    isActive: p1Value,
                     onTap: onToggleP1,
                   ),
                   const SizedBox(height: 12),
                   _CircularCheckButton(
                     label: "P2",
-                    isActive: phrase.p2,
+                    isActive: p2Value,
                     onTap: onToggleP2,
                   ),
                 ],

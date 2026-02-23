@@ -302,17 +302,42 @@ class DatabaseHelper {
     final db = await instance.database;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
 
-    // Lógica: Traer frases donde next_review_date ya pasó O es nulo (nuevas)
-    // También traemos el pattern_title para el Slot Machine
+    // 1. Determinar los patrones desbloqueados (igual que en getSmartMixPhrases)
+    final allPatterns = await db.query('patterns', orderBy: 'sort_order ASC');
+    final List<int> unlockedPatternIds = [];
+
+    for (final pattern in allPatterns) {
+      unlockedPatternIds.add(pattern['id'] as int);
+      final int total = (pattern['total_phrases'] as int?) ?? 0;
+      final int mastered = (pattern['mastered_count'] as int?) ?? 0;
+
+      // Si el patrón actual no está 100% masterizado, detenemos la búsqueda.
+      if (total == 0 || mastered < total) {
+        break;
+      }
+    }
+
+    if (unlockedPatternIds.isEmpty) {
+      return []; // No hay patrones desbloqueados
+    }
+
+    // 2. Obtener frases que:
+    //    - Pertenecen a patrones desbloqueados
+    //    - Tienen P1 y P2 completados (masterizadas)
+    //    - Están listas para repasar (next_review_date <= hoy)
+    final String idList = unlockedPatternIds.join(',');
     final result = await db.rawQuery(
       '''
       SELECT ph.id, ph.text_en, ph.text_es, ph.image_url, 
              pat.title as pattern_title, 
-             up.srs_level, up.next_review_date
+             up.srs_level, up.next_review_date, up.p1, up.p2
       FROM phrases ph
       JOIN user_progress up ON ph.id = up.phrase_id
       JOIN patterns pat ON ph.pattern_id = pat.id
-      WHERE (up.next_review_date <= ? OR up.next_review_date IS NULL)
+      WHERE ph.pattern_id IN ($idList)
+        AND up.p1 = 1 
+        AND up.p2 = 1
+        AND (up.next_review_date <= ? OR up.next_review_date IS NULL)
       ORDER BY up.next_review_date ASC
       LIMIT ?
     ''',
@@ -395,6 +420,7 @@ class DatabaseHelper {
     }
 
     // 2. Obtener frases aleatorias de esos patrones desbloqueados
+    // FILTRO: Solo frases que NO están masterizadas (p1=0 OR p2=0)
     final String idList = unlockedPatternIds.join(',');
     final result = await db.rawQuery(
       '''
@@ -405,6 +431,7 @@ class DatabaseHelper {
       JOIN user_progress up ON ph.id = up.phrase_id
       JOIN patterns pat ON ph.pattern_id = pat.id
       WHERE ph.pattern_id IN ($idList)
+        AND NOT (up.p1 = 1 AND up.p2 = 1)
       ORDER BY RANDOM()
       LIMIT ?
     ''',
