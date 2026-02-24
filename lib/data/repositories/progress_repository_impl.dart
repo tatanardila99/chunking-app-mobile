@@ -53,6 +53,8 @@ class ProgressRepositoryImpl implements ProgressRepository {
     final currentProgress = await getProgressByPhraseId(phraseId);
     final int currentLevel = currentProgress?.srsLevel ?? 0;
     final int currentFailCount = currentProgress?.failCount ?? 0;
+    final bool currentP1 = currentProgress?.p1 ?? false;
+    final bool currentP2 = currentProgress?.p2 ?? false;
 
     final now = DateTime.now();
 
@@ -63,6 +65,23 @@ class ProgressRepositoryImpl implements ProgressRepository {
     if (isCorrect) {
       // Respuesta correcta: subir nivel
       newLevel = (currentLevel + 1).clamp(0, 3);
+
+      // Marcar P1 automáticamente en el primer repaso correcto (si no está marcado)
+      if (!currentP1) {
+        await updateLegacyProgress(
+          phraseId: phraseId,
+          field: 'p1',
+          value: true,
+        );
+      }
+      // Marcar P2 automáticamente en el segundo repaso correcto (si P1 ya está marcado pero P2 no)
+      else if (currentP1 && !currentP2) {
+        await updateLegacyProgress(
+          phraseId: phraseId,
+          field: 'p2',
+          value: true,
+        );
+      }
 
       // Intervalos: 1 día, 4 días, 14 días
       switch (newLevel) {

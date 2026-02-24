@@ -53,7 +53,9 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
     }
   }
 
+  // NOTA: Método deshabilitado - ahora se usa SwipeLearningScreen para marcar P1
   // Marcar progreso individual (P1/P2)
+  // ignore: unused_element
   Future<void> _toggleProgress(PhraseWithProgress phrase, String field) async {
     final progressRepo = ref.read(progressRepositoryProvider);
     final currentValue = _getCurrentValue(phrase, field);
@@ -121,21 +123,22 @@ class _PracticeScreenState extends ConsumerState<PracticeScreen> {
                     backgroundColor: AppTheme.cardDark,
                     child: ListView.builder(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                      itemCount: phrases.length + 1,
+                      itemCount: phrases.length + 1, // +1 para Slot Machine
                       itemBuilder: (context, index) {
                         if (index == 0) {
                           return _buildSlotMachineHeroCard();
                         }
 
-                        final phraseIndex = index - 1;
+                        final phraseIndex =
+                            index - 1; // -1 porque tenemos 1 card antes
                         final phrase = phrases[phraseIndex];
                         return _MixedPhraseCard(
                           phrase: phrase,
                           p1Value: _getCurrentValue(phrase, 'p1'),
                           p2Value: _getCurrentValue(phrase, 'p2'),
                           isMastered: _getIsMastered(phrase),
-                          onToggleP1: () => _toggleProgress(phrase, 'p1'),
-                          onToggleP2: () => _toggleProgress(phrase, 'p2'),
+                          onToggleP1: () {}, // No-op: ya no se usa
+                          onToggleP2: () {}, // No-op: ya no se usa
                         );
                       },
                     ),
@@ -378,21 +381,8 @@ class _MixedPhraseCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Column(
-                children: [
-                  _CircularCheckButton(
-                    label: "P1",
-                    isActive: p1Value,
-                    onTap: onToggleP1,
-                  ),
-                  const SizedBox(height: 12),
-                  _CircularCheckButton(
-                    label: "P2",
-                    isActive: p2Value,
-                    onTap: onToggleP2,
-                  ),
-                ],
-              ),
+              // Reemplazado: Botones P1/P2 por icono de estado
+              _ProgressStatusIcon(p1: p1Value, p2: p2Value),
             ],
           ),
         ],
@@ -468,47 +458,42 @@ class _TapToRevealState extends State<_TapToReveal> {
   }
 }
 
-class _CircularCheckButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-  const _CircularCheckButton({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
+// Widget para mostrar el estado de progreso (solo lectura)
+class _ProgressStatusIcon extends StatelessWidget {
+  final bool p1;
+  final bool p2;
+
+  const _ProgressStatusIcon({required this.p1, required this.p2});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryGreen : Colors.transparent,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color:
-                isActive
-                    ? AppTheme.primaryGreen
-                    : Colors.white.withValues(alpha: 0.3),
-            width: 1.5,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color:
-                  isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
-          ),
-        ),
+    // Determinar icono y color según estado
+    IconData icon;
+    Color color;
+
+    if (p1 && p2) {
+      // Ambos completados - Estrella dorada
+      icon = Icons.star_rounded;
+      color = Colors.amber;
+    } else if (p1) {
+      // Solo P1 completado - Checkmark verde
+      icon = Icons.check_circle_rounded;
+      color = AppTheme.primaryGreen;
+    } else {
+      // Sin progreso - Círculo gris
+      icon = Icons.circle_outlined;
+      color = Colors.white.withValues(alpha: 0.3);
+    }
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: (p1 || p2) ? color.withValues(alpha: 0.15) : Colors.transparent,
+        shape: BoxShape.circle,
+        border: Border.all(color: color, width: 2),
       ),
+      child: Icon(icon, color: color, size: 24),
     );
   }
 }

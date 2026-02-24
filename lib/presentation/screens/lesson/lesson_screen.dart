@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../data/local/database_helper.dart';
 import '../../../core/services/audio_service.dart';
+import 'simple_swipe_screen.dart';
 
 class LessonScreen extends StatefulWidget {
   final String patternId;
@@ -38,7 +39,10 @@ class _LessonScreenState extends State<LessonScreen> {
     }
   }
 
+  // ignore: unused_element
   Future<void> _toggleProgress(int index, String field) async {
+    // P1 and P2 are now marked automatically during review sessions
+    // This method is kept for backwards compatibility but should not be used
     final phrase = _phrases[index];
     final int phraseId = phrase['id'];
 
@@ -118,16 +122,66 @@ class _LessonScreenState extends State<LessonScreen> {
                       itemCount: _phrases.length,
                       itemBuilder: (context, index) {
                         final phrase = _phrases[index];
-                        return _PhrasePracticeCard(
-                          phrase: phrase,
-                          onToggleP1: () => _toggleProgress(index, 'p1'),
-                          onToggleP2: () => _toggleProgress(index, 'p2'),
-                        );
+                        return _PhrasePracticeCard(phrase: phrase);
                       },
                     ),
                   ),
                 ],
               ),
+      floatingActionButton:
+          _phrases.isNotEmpty
+              ? Padding(
+                padding: const EdgeInsets.only(bottom: 20.0),
+                child: FloatingActionButton.extended(
+                  onPressed: () {
+                    // Filtrar frases: solo mostrar las que NO están masterizadas
+                    // (excluir P1=true AND P2=true)
+                    final phrasesToLearn =
+                        _phrases.where((phrase) {
+                          final bool p1 = (phrase['p1'] as int? ?? 0) == 1;
+                          final bool p2 = (phrase['p2'] as int? ?? 0) == 1;
+                          return !(p1 && p2); // Excluir masterizadas
+                        }).toList();
+
+                    // Si no hay frases para aprender, mostrar mensaje
+                    if (phrasesToLearn.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('🎉 All phrases mastered! Great job!'),
+                          backgroundColor: Color(0xFF21E5A0),
+                        ),
+                      );
+                      return;
+                    }
+
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder:
+                            (context) => SimpleSwipeScreen(
+                              phrases: phrasesToLearn,
+                              patternTitle:
+                                  _patternData?['title'] ?? "Practice",
+                            ),
+                      ),
+                    ).then((_) {
+                      // Refrescar datos al volver
+                      _loadLessonData();
+                    });
+                  },
+                  backgroundColor: AppTheme.primaryGreen,
+                  icon: const Icon(Icons.style_rounded, color: Colors.black),
+                  label: const Text(
+                    "Start Learning",
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ),
+              )
+              : null,
     );
   }
 }
@@ -188,14 +242,8 @@ class _GrammarCard extends StatelessWidget {
 
 class _PhrasePracticeCard extends StatelessWidget {
   final Map<String, dynamic> phrase;
-  final VoidCallback onToggleP1;
-  final VoidCallback onToggleP2;
 
-  const _PhrasePracticeCard({
-    required this.phrase,
-    required this.onToggleP1,
-    required this.onToggleP2,
-  });
+  const _PhrasePracticeCard({required this.phrase});
 
   @override
   Widget build(BuildContext context) {
@@ -278,22 +326,8 @@ class _PhrasePracticeCard extends StatelessWidget {
 
           const SizedBox(width: 12),
 
-          // Botones P1 y P2
-          Column(
-            children: [
-              _CircularCheckButton(
-                label: "P1",
-                isActive: p1Active,
-                onTap: onToggleP1,
-              ),
-              const SizedBox(height: 12),
-              _CircularCheckButton(
-                label: "P2",
-                isActive: p2Active,
-                onTap: onToggleP2,
-              ),
-            ],
-          ),
+          // Status icon (read-only)
+          _ProgressStatusIcon(p1Active: p1Active, p2Active: p2Active),
         ],
       ),
     );
@@ -394,57 +428,69 @@ class _TapToRevealState extends State<_TapToReveal> {
   }
 }
 
-class _CircularCheckButton extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
+// Read-only progress status icon
+class _ProgressStatusIcon extends StatelessWidget {
+  final bool p1Active;
+  final bool p2Active;
 
-  const _CircularCheckButton({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
+  const _ProgressStatusIcon({required this.p1Active, required this.p2Active});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 36,
-        height: 36,
+    // P1=true AND P2=true: Gold star (mastered)
+    if (p1Active && p2Active) {
+      return Container(
+        width: 40,
+        height: 40,
         decoration: BoxDecoration(
-          color: isActive ? AppTheme.primaryGreen : Colors.transparent,
+          color: Colors.amber.withValues(alpha: 0.15),
           shape: BoxShape.circle,
           border: Border.all(
-            color:
-                isActive
-                    ? AppTheme.primaryGreen
-                    : Colors.white.withValues(alpha: 0.3),
-            width: 1.5,
-          ),
-          boxShadow:
-              isActive
-                  ? [
-                    BoxShadow(
-                      color: AppTheme.primaryGreen.withValues(alpha: 0.4),
-                      blurRadius: 8,
-                      spreadRadius: 1,
-                    ),
-                  ]
-                  : [],
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              color:
-                  isActive ? Colors.black : Colors.white.withValues(alpha: 0.5),
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-            ),
+            color: Colors.amber.withValues(alpha: 0.5),
+            width: 2,
           ),
         ),
+        child: const Icon(Icons.star_rounded, color: Colors.amber, size: 24),
+      );
+    }
+
+    // P1=true AND P2=false: Green checkmark (learned, needs review)
+    if (p1Active && !p2Active) {
+      return Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppTheme.primaryGreen.withValues(alpha: 0.15),
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: AppTheme.primaryGreen.withValues(alpha: 0.5),
+            width: 2,
+          ),
+        ),
+        child: const Icon(
+          Icons.check_rounded,
+          color: AppTheme.primaryGreen,
+          size: 24,
+        ),
+      );
+    }
+
+    // P1=false: Gray circle (not learned yet)
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.2),
+          width: 2,
+        ),
+      ),
+      child: Icon(
+        Icons.circle_outlined,
+        color: Colors.white.withValues(alpha: 0.3),
+        size: 20,
       ),
     );
   }

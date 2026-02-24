@@ -21,8 +21,9 @@ final duePhrasesProvider = FutureProvider.family<List<PhraseWithProgress>, int>(
 );
 
 /// Provider para obtener Smart Mix de frases
-final smartMixPhrasesProvider =
-    FutureProvider.family<List<PhraseWithProgress>, int>((ref, limit) async {
+/// AutoDispose para refrescar automáticamente cuando se vuelve a la pantalla
+final smartMixPhrasesProvider = FutureProvider.autoDispose
+    .family<List<PhraseWithProgress>, int>((ref, limit) async {
       final repository = ref.watch(phraseRepositoryProvider);
       return await repository.getSmartMixPhrases(limit: limit);
     });

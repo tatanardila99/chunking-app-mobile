@@ -69,3 +69,4 @@ ios/Flutter/flutter_export_environment.sh
 ios/.generated/
 
 .google/
+.kiro/
